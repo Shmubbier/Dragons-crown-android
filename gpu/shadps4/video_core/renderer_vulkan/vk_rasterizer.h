@@ -297,6 +297,9 @@ private:
     void EmitVertexBuffers();
     void ResolveIndexBuffer(u32 index_offset);
     void EmitIndexBuffer();
+    /// dcp: quad list draws as triangle lists (LiverpoolToVK::QuadListAsTriangles); returns
+    /// the index count to draw.
+    u32 BindQuadListIndices(bool is_indexed, u32 index_offset);
 
     void ResetBindings(bool is_compute);
     bool pipeline_is_compute = false; ///< the pipeline of the current BindResources

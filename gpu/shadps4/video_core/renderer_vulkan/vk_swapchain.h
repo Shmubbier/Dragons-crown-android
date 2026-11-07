@@ -118,11 +118,16 @@ private:
 
     void LogImages();
 
+    /// Android: waits for the app's window while it is in the background and rebuilds the surface on a new one.
+    void WaitForAndroidSurface();
+
 private:
     const Instance& instance;
     const Frontend::WindowSDL& window;
     vk::SwapchainKHR swapchain{};
     vk::SurfaceKHR surface{};
+    void* android_window = nullptr; ///< Android: the ANativeWindow the surface was made for
+    bool surface_lost = false;      ///< the driver reported the surface lost: rebuild it before the swapchain
     const bool gamescope; ///< Gamescope session: low-latency image count
     vk::SurfaceFormatKHR surface_format;
     vk::Format view_format;

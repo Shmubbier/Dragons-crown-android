@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdlib>
 #include "shader_recompiler/backend/spirv/emit_spirv_instructions.h"
 #include "shader_recompiler/backend/spirv/spirv_emit_context.h"
 
@@ -39,8 +40,26 @@ Id EmitFPFma64(EmitContext& ctx, IR::Inst* inst, Id a, Id b, Id c) {
     return Decorate(ctx, inst, ctx.OpFma(ctx.F64[1], a, b, c));
 }
 
+namespace {
+// dcp: NaN-safe min/max/clamp (GCN semantics). DCP_NAN_SAFE=0 restores FMin/FMax/FClamp.
+bool NanSafe() {
+    static const bool on = [] {
+        const char* v = std::getenv("DCP_NAN_SAFE");
+        return !(v && *v == '0');
+    }();
+    return on;
+}
+Id Max32(EmitContext& ctx, Id a, Id b) {
+    return NanSafe() ? ctx.OpNMax(ctx.F32[1], a, b) : ctx.OpFMax(ctx.F32[1], a, b);
+}
+Id Min32(EmitContext& ctx, Id a, Id b) {
+    return NanSafe() ? ctx.OpNMin(ctx.F32[1], a, b) : ctx.OpFMin(ctx.F32[1], a, b);
+}
+} // namespace
+
+// dcp: GCN min/max/med3 return the non-NaN operand (NMin/NMax); FMin/FMax leave it undefined.
 Id EmitFPMax32(EmitContext& ctx, Id a, Id b) {
-    return ctx.OpFMax(ctx.F32[1], a, b);
+    return Max32(ctx, a, b);
 }
 
 Id EmitFPMax64(EmitContext& ctx, Id a, Id b) {
@@ -48,7 +67,7 @@ Id EmitFPMax64(EmitContext& ctx, Id a, Id b) {
 }
 
 Id EmitFPMin32(EmitContext& ctx, Id a, Id b) {
-    return ctx.OpFMin(ctx.F32[1], a, b);
+    return Min32(ctx, a, b);
 }
 
 Id EmitFPMin64(EmitContext& ctx, Id a, Id b) {
@@ -59,22 +78,22 @@ Id EmitFPMinTri32(EmitContext& ctx, Id a, Id b, Id c) {
     if (ctx.profile.supports_trinary_minmax) {
         return ctx.OpFMin3AMD(ctx.F32[1], a, b, c);
     }
-    return ctx.OpFMin(ctx.F32[1], a, ctx.OpFMin(ctx.F32[1], b, c));
+    return Min32(ctx, a, Min32(ctx, b, c));
 }
 
 Id EmitFPMaxTri32(EmitContext& ctx, Id a, Id b, Id c) {
     if (ctx.profile.supports_trinary_minmax) {
         return ctx.OpFMax3AMD(ctx.F32[1], a, b, c);
     }
-    return ctx.OpFMax(ctx.F32[1], a, ctx.OpFMax(ctx.F32[1], b, c));
+    return Max32(ctx, a, Max32(ctx, b, c));
 }
 
 Id EmitFPMedTri32(EmitContext& ctx, Id a, Id b, Id c) {
     if (ctx.profile.supports_trinary_minmax) {
         return ctx.OpFMid3AMD(ctx.F32[1], a, b, c);
     }
-    const Id mmx{ctx.OpFMin(ctx.F32[1], ctx.OpFMax(ctx.F32[1], a, b), c)};
-    return ctx.OpFMax(ctx.F32[1], ctx.OpFMin(ctx.F32[1], a, b), mmx);
+    const Id mmx{Min32(ctx, Max32(ctx, a, b), c)};
+    return Max32(ctx, Min32(ctx, a, b), mmx);
 }
 
 Id EmitFPMul32(EmitContext& ctx, IR::Inst* inst, Id a, Id b) {
@@ -146,9 +165,12 @@ Id EmitFPSqrt(EmitContext& ctx, Id value) {
 }
 
 Id EmitFPSaturate32(EmitContext& ctx, Id value) {
+    // dcp: GCN's clamp modifier turns NaN into 0; FClamp leaves NaN undefined (Adreno passes it
+    // on, and NaN colours from 1/0 constants hang its blender). NMax/NMin return the non-NaN side.
     const Id zero{ctx.ConstF32(f32{0.0})};
     const Id one{ctx.ConstF32(f32{1.0})};
-    return ctx.OpFClamp(ctx.F32[1], value, zero, one);
+    return NanSafe() ? Min32(ctx, Max32(ctx, value, zero), one)
+                     : ctx.OpFClamp(ctx.F32[1], value, zero, one);
 }
 
 Id EmitFPSaturate64(EmitContext& ctx, Id value) {

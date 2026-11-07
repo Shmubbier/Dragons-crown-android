@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdlib>
 #include "common/assert.h"
 #include "common/number_utils.h"
 #include "video_core/amdgpu/pixel_format.h"
@@ -106,6 +107,18 @@ bool IsPrimitiveCulled(AmdGpu::PrimitiveType type) {
     }
 }
 
+bool QuadListAsTriangles() {
+#ifdef ANDROID
+    static const bool on = [] {
+        const char* v = std::getenv("DCP_QUAD_TESS");
+        return !(v && *v == '1');
+    }();
+    return on;
+#else
+    return false;
+#endif
+}
+
 vk::PrimitiveTopology PrimitiveType(AmdGpu::PrimitiveType type) {
     switch (type) {
     case AmdGpu::PrimitiveType::PointList:
@@ -135,6 +148,8 @@ vk::PrimitiveTopology PrimitiveType(AmdGpu::PrimitiveType type) {
     case AmdGpu::PrimitiveType::PatchPrimitive:
         return vk::PrimitiveTopology::ePatchList;
     case AmdGpu::PrimitiveType::QuadList:
+        return QuadListAsTriangles() ? vk::PrimitiveTopology::eTriangleList
+                                     : vk::PrimitiveTopology::ePatchList;
     case AmdGpu::PrimitiveType::RectList:
         return vk::PrimitiveTopology::ePatchList;
     default:

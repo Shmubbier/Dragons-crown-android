@@ -22,7 +22,17 @@
 #include "common/path_util.h"
 #include "core/emulator_settings.h"
 #include "sdl_window.h"
+#ifdef ANDROID
+#include <SDL3/SDL_video.h>
+#endif
 #include "video_core/renderer_vulkan/vk_platform.h"
+#ifdef DCP_ADRENOTOOLS
+#include <cstdlib>
+#include <filesystem>
+#include <string>
+#include <dlfcn.h>
+#include <adrenotools/driver.h>
+#endif
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -104,6 +114,20 @@ vk::SurfaceKHR CreateSurface(vk::Instance instance, const Frontend::WindowSDL& e
             UNREACHABLE();
         }
     }
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+    if (window_info.type == Frontend::WindowSystemType::Android) {
+        const vk::AndroidSurfaceCreateInfoKHR android_ci = {
+            // The live property, not the cached info: Android replaces the window after the app was in the
+            // background (Swapchain::WaitForAndroidSurface).
+            .window = static_cast<ANativeWindow*>(SDL_GetPointerProperty(
+                SDL_GetWindowProperties(emu_window.GetSDLWindow()), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER,
+                window_info.render_surface)),
+        };
+        if (instance.createAndroidSurfaceKHR(&android_ci, nullptr, &surface) != vk::Result::eSuccess) {
+            LOG_CRITICAL(Render_Vulkan, "Failed to initialize Android surface");
+            UNREACHABLE();
+        }
+    }
 #elif defined(VK_USE_PLATFORM_METAL_EXT)
     if (window_info.type == Frontend::WindowSystemType::Metal) {
         const vk::MetalSurfaceCreateInfoEXT macos_ci = {
@@ -182,6 +206,10 @@ std::vector<const char*> GetInstanceExtensions(Frontend::WindowSystemType window
         break;
     case Frontend::WindowSystemType::Wayland:
         extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+        break;
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+    case Frontend::WindowSystemType::Android:
+        extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
         break;
 #elif defined(VK_USE_PLATFORM_METAL_EXT)
     case Frontend::WindowSystemType::Metal:
@@ -268,6 +296,36 @@ static void LogAvailableLayers() {
     }
 }
 
+#ifdef DCP_ADRENOTOOLS
+// dcp: DCP_VULKAN_DRIVER=<path to a driver .so> (e.g. Mesa Turnip) is loaded through libadrenotools:
+// a private copy of the system Vulkan loader whose driver lookup is redirected to that file, so
+// Android's own swapchain support stays. Null when unset or when loading fails.
+static PFN_vkGetInstanceProcAddr CustomDriverProcAddr() {
+    static const PFN_vkGetInstanceProcAddr proc = []() -> PFN_vkGetInstanceProcAddr {
+        const char* driver = std::getenv("DCP_VULKAN_DRIVER");
+        if (!driver || !*driver) {
+            return nullptr;
+        }
+        const std::filesystem::path path{driver};
+        Dl_info self{};
+        dladdr(reinterpret_cast<void*>(&CustomDriverProcAddr), &self);
+        // The hook libraries ship next to libmain.so; both directories need a trailing slash.
+        const std::string hook_dir = std::filesystem::path(self.dli_fname).parent_path().string() + "/";
+        const std::string driver_dir = path.parent_path().string() + "/";
+        void* lib = adrenotools_open_libvulkan(RTLD_NOW, ADRENOTOOLS_DRIVER_CUSTOM, nullptr,
+                                               hook_dir.c_str(), driver_dir.c_str(),
+                                               path.filename().c_str(), nullptr, nullptr);
+        const auto gipa =
+            lib ? reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(lib, "vkGetInstanceProcAddr"))
+                : nullptr;
+        std::printf("Vulkan: custom driver %s %s\n", driver,
+                    gipa ? "loaded" : "failed to load, using the system driver");
+        return gipa;
+    }();
+    return proc;
+}
+#endif
+
 vk::UniqueInstance CreateInstance(Frontend::WindowSystemType window_type, bool enable_validation,
                                   bool enable_crash_diagnostic) {
     LOG_INFO(Render_Vulkan, "Creating vulkan instance");
@@ -284,9 +342,16 @@ vk::UniqueInstance CreateInstance(Frontend::WindowSystemType window_type, bool e
     setenv("VK_DRIVER_FILES", icd_path.c_str(), true);
 #endif
 
-    static vk::detail::DynamicLoader dl;
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(
-        dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
+#ifdef DCP_ADRENOTOOLS
+    if (const auto custom = CustomDriverProcAddr()) {
+        VULKAN_HPP_DEFAULT_DISPATCHER.init(custom);
+    } else
+#endif
+    {
+        static vk::detail::DynamicLoader dl;
+        VULKAN_HPP_DEFAULT_DISPATCHER.init(
+            dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
+    }
 
     const auto [available_version_result, available_version] =
         VULKAN_HPP_DEFAULT_DISPATCHER.vkEnumerateInstanceVersion

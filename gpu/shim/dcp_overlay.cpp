@@ -35,6 +35,9 @@
 #include "imgui_impl_vulkan.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
+#ifdef __ANDROID__
+#include "touch_layout.h"
+#endif
 
 // DejaVu Sans (Cyrillic), embedded (third_party/fonts, Bitstream Vera license).
 #ifdef _WIN32
@@ -692,6 +695,82 @@ void PollOnlineNotice() {
     SetNotice(TranslateNotice(text), std::chrono::seconds(6));
 }
 
+
+#ifdef __ANDROID__
+// Android on-screen controls (android/touch_layout.h); input is read in src/runtime_pad.c.
+bool TouchControlsShown() {
+    return dcp_touch_controls_visible() != 0;
+}
+
+void TouchControls(ImVec2 size) {
+    ImDrawList* draw = ImGui::GetForegroundDrawList();
+    const u32 held = dcp_touch_held_buttons();
+    const float w = size.x, h = size.y;
+    for (const DcpTouchButton& b : dcp_touch_buttons) {
+        const ImVec2 c{b.x * w, b.y * h};
+        const float r = b.r * h;
+        const bool on = (held & b.button) != 0;
+        const ImU32 ink = IM_COL32(255, 255, 255, on ? 255 : 190);
+        const float thick = std::max(2.0f, r * 0.09f);
+        const float g = r * 0.45f;
+        draw->AddCircleFilled(c, r, on ? IM_COL32(255, 255, 255, 110) : IM_COL32(0, 0, 0, 80), 40);
+        draw->AddCircle(c, r, IM_COL32(255, 255, 255, on ? 230 : 140), 40, std::max(1.5f, r * 0.04f));
+        switch (b.shape) {
+        case DCP_TOUCH_CROSS:
+            draw->AddLine({c.x - g, c.y - g}, {c.x + g, c.y + g}, ink, thick);
+            draw->AddLine({c.x - g, c.y + g}, {c.x + g, c.y - g}, ink, thick);
+            break;
+        case DCP_TOUCH_CIRCLE:
+            draw->AddCircle(c, g, ink, 32, thick);
+            break;
+        case DCP_TOUCH_SQUARE:
+            draw->AddRect({c.x - g * 0.85f, c.y - g * 0.85f}, {c.x + g * 0.85f, c.y + g * 0.85f}, ink, 0.0f, 0, thick);
+            break;
+        case DCP_TOUCH_TRIANGLE:
+            draw->AddTriangle({c.x, c.y - g}, {c.x - g, c.y + g * 0.75f}, {c.x + g, c.y + g * 0.75f}, ink, thick);
+            break;
+        case DCP_TOUCH_ARROW: {
+            const char d = b.label ? b.label[0] : 'u';
+            const float a = g * 0.9f;
+            if (d == 'u') draw->AddTriangleFilled({c.x, c.y - a}, {c.x - a, c.y + a * 0.6f}, {c.x + a, c.y + a * 0.6f}, ink);
+            if (d == 'd') draw->AddTriangleFilled({c.x, c.y + a}, {c.x + a, c.y - a * 0.6f}, {c.x - a, c.y - a * 0.6f}, ink);
+            if (d == 'l') draw->AddTriangleFilled({c.x - a, c.y}, {c.x + a * 0.6f, c.y + a}, {c.x + a * 0.6f, c.y - a}, ink);
+            if (d == 'r') draw->AddTriangleFilled({c.x + a, c.y}, {c.x - a * 0.6f, c.y - a}, {c.x - a * 0.6f, c.y + a}, ink);
+            break;
+        }
+        case DCP_TOUCH_LABEL: {
+            const float font = std::min(r * 0.7f, ImGui::GetFontSize() * 1.4f);
+            const ImVec2 t = ImGui::GetFont()->CalcTextSizeA(font, FLT_MAX, 0.0f, b.label);
+            draw->AddText(ImGui::GetFont(), font, {c.x - t.x * 0.5f, c.y - t.y * 0.5f}, ink, b.label);
+            break;
+        }
+        }
+    }
+    float ox, oy, kx, ky;
+    const float stick_r = DCP_TOUCH_STICK_RADIUS * h;
+    if (dcp_touch_stick(&ox, &oy, &kx, &ky)) {
+        const ImVec2 o{ox * w, oy * h};
+        float dx = (kx - ox) * w, dy = (ky - oy) * h;
+        const float len = std::sqrt(dx * dx + dy * dy);
+        if (len > stick_r) {
+            dx *= stick_r / len;
+            dy *= stick_r / len;
+        }
+        draw->AddCircleFilled(o, stick_r, IM_COL32(0, 0, 0, 70), 48);
+        draw->AddCircle(o, stick_r, IM_COL32(255, 255, 255, 150), 48, 2.0f);
+        draw->AddCircleFilled({o.x + dx, o.y + dy}, stick_r * 0.42f, IM_COL32(255, 255, 255, 140), 32);
+    } else {
+        // Where the stick usually is: a faint ring as a hint.
+        draw->AddCircle({0.26f * w, 0.70f * h}, stick_r, IM_COL32(255, 255, 255, 60), 48, 2.0f);
+    }
+}
+#else
+bool TouchControlsShown() {
+    return false;
+}
+void TouchControls(ImVec2) {}
+#endif
+
 } // namespace
 
 // imgui_mutex held.
@@ -1034,7 +1113,7 @@ void ShowNotice(const std::string& text) {
 bool Visible() {
     const auto& s = DcpSettings::Get();
     return initialized && (loading || background_total || cheat_open || options_open || text_entry_active || choice_active ||
-                           choice_retiring || s.show_fps || PingShown() || NoticeShown());
+                           choice_retiring || s.show_fps || PingShown() || NoticeShown() || TouchControlsShown());
 }
 
 void SetDisplayScale(float scale) {
@@ -1093,6 +1172,23 @@ bool BeginPresent() {
     if (ms > 0.0f && ms < 1000.0f) {
         frame_ms_avg = frame_ms_avg == 0.0f ? ms : frame_ms_avg * 0.95f + ms * 0.05f;
     }
+    // DCP_LOG_FPS (set by the Android build): presented frames per 5 s in the log, for unattended measurement.
+    static const bool log_fps = std::getenv("DCP_LOG_FPS") != nullptr;
+    if (log_fps) {
+        static auto window_start = now;
+        static u64 window_frames = 0;
+        static float worst_ms = 0.0f;
+        ++window_frames;
+        worst_ms = std::max(worst_ms, ms < 1000.0f ? ms : 0.0f);
+        const float elapsed = std::chrono::duration<float>(now - window_start).count();
+        if (elapsed >= 5.0f) {
+            std::printf("Perf: %.1f fps (%llu frames in %.1f s), worst frame %.1f ms\n", window_frames / elapsed,
+                        (unsigned long long)window_frames, elapsed, worst_ms);
+            window_start = now;
+            window_frames = 0;
+            worst_ms = 0.0f;
+        }
+    }
     PollChoiceInput();
     if (!PingShown()) {
         ping_readout.Reset();
@@ -1130,6 +1226,9 @@ void BuildFrame(u32 width, u32 height, void (*new_frame)()) {
     }
     if (DcpSettings::Get().show_fps) {
         FpsCounter();
+    }
+    if (TouchControlsShown()) {
+        TouchControls(io.DisplaySize);
     }
     if (PingShown()) {
         PingCounter();

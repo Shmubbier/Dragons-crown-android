@@ -40,10 +40,20 @@ std::vector<Entry> entries;
 std::vector<std::pair<Target, bool>> pending_sampled;
 std::vector<std::string> pending_buffers;
 
-void AddBuffers(Entry& entry) {
+void AddBuffers(Entry& entry, u64 vs_hash = 0, u64 ps_hash = 0) {
     // Constants of full-screen passes (post-processing: camera matrices) and of the first draw
-    // of each geometry pass.
-    if (entry.draws <= 4) {
+    // of each geometry pass, plus the first draws of the DCP_CAPTURE_VS shader.
+    static const u64 watch = [] {
+        const char* s = std::getenv("DCP_CAPTURE_VS");
+        return s ? std::strtoull(s, nullptr, 16) : 0ull;
+    }();
+    static u32 watched = 0;
+    const bool keep_watched = watch && (vs_hash == watch || ps_hash == watch) && watched < 12;
+    if (keep_watched) {
+        ++watched;
+        entry.buffers.push_back(std::format("  -- draw {} of the watched vertex shader", entry.draws));
+    }
+    if (entry.draws <= 4 || keep_watched) {
         for (auto& b : pending_buffers) {
             entry.buffers.push_back(std::move(b));
         }
@@ -241,7 +251,7 @@ void FrameCapture::Draw(u64 vs_hash, u64 ps_hash, u32 num_indices, u32 num_insta
     AddShader(e, vs_hash);
     AddShader(e, ps_hash);
     AddSampled(e);
-    AddBuffers(e);
+    AddBuffers(e, vs_hash, ps_hash);
 }
 
 void FrameCapture::Dispatch(u64 cs_hash, u32 x, u32 y, u32 z) {
@@ -262,10 +272,11 @@ void FrameCapture::Dispatch(u64 cs_hash, u32 x, u32 y, u32 z) {
     pass_open = false;
 }
 
-void FrameCapture::Buffer(u64 stage_hash, u32 slot, VAddr address, const void* data, u64 size) {
+void FrameCapture::Buffer(u64 stage_hash, u32 slot, VAddr address, const void* data, u64 size,
+                          const char* label) {
     const u64 bytes = std::min<u64>(size, 1024) & ~u64(3);
-    std::string out = std::format("  buffer stage {:016x} slot {} at {:#x} size {}:", stage_hash,
-                                  slot, address, size);
+    std::string out = std::format("  buffer stage {:016x} slot {} at {:#x} size {}{}{}:", stage_hash,
+                                  slot, address, size, label ? " " : "", label ? label : "");
     const auto* words = static_cast<const float*>(data);
     for (u64 i = 0; i < bytes / 4; ++i) {
         if (i % 8 == 0) {

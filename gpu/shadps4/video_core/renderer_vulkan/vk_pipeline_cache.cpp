@@ -297,7 +297,8 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(PipelineSelection& se
         info.sw.vs.instance_sgpr_offset = sel.draw_indirect_params.instance_sgpr_offset;
         info.sw.vs.tess_emulated_primitive =
             regs.primitive_type == AmdGpu::PrimitiveType::RectList ||
-            regs.primitive_type == AmdGpu::PrimitiveType::QuadList;
+            (regs.primitive_type == AmdGpu::PrimitiveType::QuadList &&
+             !LiverpoolToVK::QuadListAsTriangles());
         break;
     case SwStage::TessellationControl: {
         info.sw.tcs.num_input_control_points = regs.ls_hs_config.hs_input_control_points;

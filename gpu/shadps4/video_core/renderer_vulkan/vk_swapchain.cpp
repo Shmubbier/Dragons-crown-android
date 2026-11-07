@@ -15,6 +15,10 @@
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
+#ifdef __ANDROID__
+#include <SDL3/SDL.h>
+#include "video_core/renderer_vulkan/vk_platform.h"
+#endif
 
 namespace Vulkan {
 
@@ -40,6 +44,7 @@ static_assert(vk::PresentModeKHR(DcpPresent::Mode::Immediate) == vk::PresentMode
 Swapchain::Swapchain(const Instance& instance_, const Frontend::WindowSDL& window_)
     : instance{instance_}, window{window_}, surface{CreateSurface(instance.GetInstance(), window)},
       gamescope{DcpPresent::GamescopeSession()} {
+    android_window = window.GetWindowInfo().render_surface;
     FindPresentFormat();
     FindPresentMode();
 
@@ -60,8 +65,13 @@ void Swapchain::Create(u32 width_, u32 height_) {
     needs_recreation = false;
 
     Destroy();
+    WaitForAndroidSurface();
 
     SetSurfaceProperties();
+    if (surface_lost) { // the window went away again between the wait and the query
+        Create(width_, height_);
+        return;
+    }
 
     const std::array queue_family_indices = {
         instance.GetGraphicsQueueFamilyIndex(),
@@ -93,6 +103,12 @@ void Swapchain::Create(u32 width_, u32 height_) {
     };
 
     auto [swapchain_result, chain] = instance.GetDevice().createSwapchainKHR(swapchain_info);
+    if (swapchain_result == vk::Result::eErrorSurfaceLostKHR ||
+        swapchain_result == vk::Result::eErrorNativeWindowInUseKHR) {
+        surface_lost = true;
+        Create(width_, height_);
+        return;
+    }
     ASSERT_MSG(swapchain_result == vk::Result::eSuccess, "Failed to create swapchain: {}",
                vk::to_string(swapchain_result));
     swapchain = chain;
@@ -114,6 +130,32 @@ void Swapchain::LogImages() {
     }
     logged_images = counts;
     std::printf("Swapchain: images %s, extent %ux%u\n", counts, extent.width, extent.height);
+}
+
+// Android destroys the app's window surface while it is in the background (Home, a call, another app on the
+// cover screen) and hands it a new one on return. SDL clears the window pointer property meanwhile: the present
+// thread waits here (the game stalls on its next flip) and the Vulkan surface is rebuilt on the new window.
+void Swapchain::WaitForAndroidSurface() {
+#ifdef __ANDROID__
+    const SDL_PropertiesID props = SDL_GetWindowProperties(window.GetSDLWindow());
+    void* native = nullptr;
+    bool waited = false;
+    while (!(native = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr))) {
+        if (!waited) {
+            std::printf("Swapchain: window surface gone (app in the background), waiting for it\n");
+            waited = true;
+        }
+        SDL_Delay(50);
+    }
+    if (native == android_window && !surface_lost) {
+        return;
+    }
+    instance.GetInstance().destroySurfaceKHR(surface);
+    surface = CreateSurface(instance.GetInstance(), window); // reads the window's current ANativeWindow
+    android_window = native;
+    surface_lost = false;
+    std::printf("Swapchain: window surface back, surface rebuilt\n");
+#endif
 }
 
 void Swapchain::Recreate(u32 width_, u32 height_) {
@@ -143,8 +185,11 @@ bool Swapchain::AcquireNextImage() {
     switch (result) {
     case vk::Result::eSuccess:
         break;
-    case vk::Result::eSuboptimalKHR:
     case vk::Result::eErrorSurfaceLostKHR:
+        surface_lost = true;
+        needs_recreation = true;
+        break;
+    case vk::Result::eSuboptimalKHR:
     case vk::Result::eErrorOutOfDateKHR:
     case vk::Result::eErrorUnknown:
         needs_recreation = true;
@@ -170,6 +215,9 @@ bool Swapchain::Present() {
 
     auto result = instance.GetPresentQueue().presentKHR(present_info);
     if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR) {
+        needs_recreation = true;
+    } else if (result == vk::Result::eErrorSurfaceLostKHR) {
+        surface_lost = true;
         needs_recreation = true;
     } else {
         ASSERT_MSG(result == vk::Result::eSuccess, "Swapchain presentation failed: {}",
@@ -257,6 +305,10 @@ void Swapchain::UpdateVsync() {
 void Swapchain::SetSurfaceProperties() {
     const auto [capabilities_result, capabilities] =
         instance.GetPhysicalDevice().getSurfaceCapabilitiesKHR(surface);
+    if (capabilities_result == vk::Result::eErrorSurfaceLostKHR) {
+        surface_lost = true;
+        return;
+    }
     ASSERT_MSG(capabilities_result == vk::Result::eSuccess,
                "Failed to query surface capabilities: {}", vk::to_string(capabilities_result));
 
@@ -297,6 +349,7 @@ void Swapchain::Destroy() {
 
     if (swapchain) {
         device.destroySwapchainKHR(swapchain);
+        swapchain = nullptr; // Create retries (lost Android surface) call Destroy again
     }
 
     for (const auto& sem : image_acquired) {

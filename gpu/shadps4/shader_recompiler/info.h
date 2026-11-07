@@ -6,6 +6,7 @@
 #include <span>
 #include <vector>
 #include <boost/container/static_vector.hpp>
+#include "common/arch.h"
 #include "common/assert.h"
 #include "common/types.h"
 #include "shader_recompiler/backend/bindings.h"
@@ -242,7 +243,15 @@ struct Info : InfoPersistent {
         ASSERT(user_data.size() <= NUM_USER_DATA_REGS);
         std::memcpy(flattened_ud_buf.data(), user_data.data(), user_data.size_bytes());
         if (srt_info.walker_func) {
+#ifdef ARCH_X86_64
             srt_info.walker_func(user_data.data(), flattened_ud_buf.data());
+#else
+            RunSrtProgram(reinterpret_cast<const u8*>(srt_info.walker_func), srt_info.walker_func_size,
+                          user_data.data(), flattened_ud_buf.data());
+            LogSrtProgram(pgm_hash, reinterpret_cast<const u32*>(srt_info.walker_func),
+                          srt_info.walker_func_size / 4, user_data.data(), user_data.size(),
+                          flattened_ud_buf.data(), flattened_ud_buf.size());
+#endif
         }
     }
 

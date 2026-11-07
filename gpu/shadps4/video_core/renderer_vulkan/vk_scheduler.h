@@ -676,6 +676,15 @@ private:
     CommandBase* last{};
 };
 
+/// DCP_GPU_SYNC=1 (debugging a lost device): every submission is waited for, and when the GPU faults or hangs the
+/// shaders recorded into that submission are logged before the device-lost assert.
+namespace GpuSync {
+bool Enabled();
+void Note(const char* kind, u64 hash_a, u64 hash_b, u32 count);
+/// Where a command was recorded (Scheduler::Record / CommandBuffer); repeats from one line are merged.
+void NoteSite(const std::source_location& where);
+} // namespace GpuSync
+
 class Scheduler {
 public:
     /// `threaded_recording`: Vulkan commands passed to Record() are recorded by a worker thread.
@@ -730,7 +739,11 @@ public:
     /// recording this first waits until all commands passed to Record() are recorded, then
     /// records directly (Record() included, so callers may mix both) until the next
     /// KickRecording() or submission.
-    [[gnu::noinline]] vk::CommandBuffer CommandBuffer() {
+    [[gnu::noinline]] vk::CommandBuffer CommandBuffer(
+        std::source_location where = std::source_location::current()) {
+        if (GpuSync::Enabled()) {
+            GpuSync::NoteSite(where);
+        }
         if (recording_threaded && !direct_mode) {
             SyncRecording();
             direct_mode = true;
@@ -746,7 +759,10 @@ public:
     /// Records `func(vk::CommandBuffer)` in order with other commands. The closure must own
     /// everything it uses (capture by value): it may run later on the recording thread.
     template <typename Func>
-    void Record(Func&& func) {
+    void Record(Func&& func, std::source_location where = std::source_location::current()) {
+        if (GpuSync::Enabled()) {
+            GpuSync::NoteSite(where);
+        }
         if (!recording_threaded || direct_mode) {
             func(current_cmdbuf);
             return;

@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Frame pointers keep the loader's fault reports walkable.
 add_compile_options(-fno-omit-frame-pointer)
 
+if(ANDROID)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/../android/gpu_deps.cmake)
+else()
 find_package(Vulkan REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Boost REQUIRED CONFIG)
@@ -17,6 +20,7 @@ pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash)
 find_package(SDL3 REQUIRED CONFIG)
 find_package(PNG REQUIRED)
 find_program(GLSLANG_COMPILER NAMES glslang glslangValidator REQUIRED)
+endif()
 
 # MSYS2 has no magic_enum, miniz or VMA CMake packages: the fetched sources and header are used.
 add_library(magic_enum INTERFACE)
@@ -87,6 +91,10 @@ set(COMMON
     shadps4/common/string_util.cpp shadps4/common/thread.cpp shadps4/common/signal_context.cpp
     shim/common/logging/log.cpp)
 file(GLOB SHIM_SOURCES CONFIGURE_DEPENDS shim/*.cpp shim/*/*.cpp)
+if(ANDROID)
+    # The x86-64 instruction decoder (Zydis) only serves x86-64 hosts.
+    list(REMOVE_ITEM COMMON shadps4/common/decoder.cpp)
+endif()
 # Static: the runtime_* symbols it calls are defined by the loader executable.
 add_library(dcpgpu STATIC ${VIDEO_CORE} ${RECOMPILER} ${COMMON} ${SHIM_SOURCES}
     shadps4/core/libraries/gnmdriver/gnmdriver.cpp

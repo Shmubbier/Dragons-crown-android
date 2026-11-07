@@ -17,6 +17,7 @@
 #include <sys/resource.h>
 #endif
 #include "common/assert.h"
+#include "dcp_adpf.h"
 #include "dcp_frame_pacing.h"
 #include "dcp_latency_trace.h"
 #include "dcp_present.h"
@@ -369,6 +370,7 @@ void VideoOutDriver::Flip(const Request& req) {
     });
     Vulkan::FrameCapture::OnFlip(req.index >= 0 ? req.port->buffer_slots[req.index].address_left
                                                 : 0);
+    DcpAdpf::OnFlip();
 
     // DCP_FRAME_STATS=1: flip rate, frame time spread and stall causes, every 5 seconds.
     static const bool frame_stats = DcpStats::enabled;

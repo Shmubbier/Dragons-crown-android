@@ -12,8 +12,27 @@
 #else
 #include <sys/ucontext.h>
 #endif
+#if defined(__linux__) && defined(ARCH_ARM64)
+#include <asm/sigcontext.h>
+#endif
 
 namespace Common {
+
+#if defined(__linux__) && defined(ARCH_ARM64)
+// Linux arm64 stores the fault's ESR as an esr_context record in the signal frame's reserved area.
+static u64 LinuxArm64Esr(void* ctx) {
+    const auto& mc = ((ucontext_t*)ctx)->uc_mcontext;
+    const u8* at = reinterpret_cast<const u8*>(mc.__reserved);
+    const u8* end = at + sizeof(mc.__reserved);
+    while (at + sizeof(_aarch64_ctx) <= end) {
+        const auto* head = reinterpret_cast<const _aarch64_ctx*>(at);
+        if (head->magic == 0 || head->size == 0) break;
+        if (head->magic == ESR_MAGIC) return reinterpret_cast<const esr_context*>(at)->esr;
+        at += head->size;
+    }
+    return 0;
+}
+#endif
 
 void* GetRip(void* ctx) {
 #if defined(_WIN32)
@@ -26,6 +45,8 @@ void* GetRip(void* ctx) {
     return (void*)((ucontext_t*)ctx)->uc_mcontext.mc_rip;
 #elif defined(ARCH_X86_64)
     return (void*)((ucontext_t*)ctx)->uc_mcontext.gregs[REG_RIP];
+#elif defined(__linux__) && defined(ARCH_ARM64)
+    return (void*)((ucontext_t*)ctx)->uc_mcontext.pc;
 #else
 #error "Unsupported architecture"
 #endif
@@ -42,6 +63,8 @@ bool IsWriteError(void* ctx) {
     return ((ucontext_t*)ctx)->uc_mcontext.mc_err & 0x2;
 #elif defined(ARCH_X86_64)
     return ((ucontext_t*)ctx)->uc_mcontext.gregs[REG_ERR] & 0x2;
+#elif defined(__linux__) && defined(ARCH_ARM64)
+    return LinuxArm64Esr(ctx) & 0x40; // WnR: the faulting data access was a write
 #else
 #error "Unsupported architecture"
 #endif

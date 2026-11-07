@@ -1,7 +1,15 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "dcp_cpu_relax.h"
 #include <chrono>
+#include <algorithm>
+#include <cstdio>
+#include <mutex>
+#include <set>
+#include <string>
+#include <tuple>
+#include <vector>
 #include <xxhash.h>
 #include "dcp_amd_water_fix.h"
 #include "dcp_toggles.h"
@@ -816,13 +824,13 @@ void Rasterizer::PrintPipeStats() {
     }
     static auto window = std::chrono::steady_clock::now();
     static u64 last_packets = 0, last_drains = 0, last_drain_cycles = 0, last_busy = 0;
-    static u64 last_tsc = __rdtsc();
+    static u64 last_tsc = dcp_cycles();
     const auto now = std::chrono::steady_clock::now();
     const double seconds = std::chrono::duration<double>(now - window).count();
     if (seconds < 5.0) {
         return;
     }
-    const u64 tsc = __rdtsc();
+    const u64 tsc = dcp_cycles();
     const double cycles = double(tsc - last_tsc);
     const u64 busy = draw_pipe->busy_cycles.load(std::memory_order_relaxed);
     std::printf("Draw pipe: %.0f draws/s pipelined, %.0f drains/s that waited, stage A waited "
@@ -925,6 +933,52 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset, const PreparedDraw* pre
     DrawRecord(pipeline, used_prepared, is_indexed, index_offset);
 }
 
+namespace DcpSkip {
+// Diagnostic: DCP_SKIP_FILE names a file of hex shader hashes (one per line), re-read every
+// second. Draws whose vertex or pixel shader and dispatches whose compute shader match are left
+// out. The shaders used during the last second go to <file>.seen ("vs ps prim" or "cs - -").
+namespace {
+std::mutex mutex;
+std::vector<u64> skipped;
+std::set<std::tuple<u64, u64, u32>> seen;
+std::chrono::steady_clock::time_point next_reload;
+} // namespace
+
+bool Skip(u64 a, u64 b, u32 prim) {
+    static const char* path = std::getenv("DCP_SKIP_FILE");
+    if (!path) {
+        return false;
+    }
+    std::scoped_lock lock{mutex};
+    seen.insert({a, b, prim});
+    if (const auto now = std::chrono::steady_clock::now(); now >= next_reload) {
+        next_reload = now + std::chrono::seconds(1);
+        skipped.clear();
+        if (FILE* f = std::fopen(path, "r")) {
+            unsigned long long h;
+            while (std::fscanf(f, "%llx", &h) == 1) {
+                skipped.push_back(h);
+            }
+            std::fclose(f);
+        }
+        if (FILE* f = std::fopen((std::string(path) + ".seen").c_str(), "w")) {
+            for (const auto& [x, y, p] : seen) {
+                if (p == 0xFFFF) {
+                    std::fprintf(f, "%016llx - -\n", (unsigned long long)x);
+                } else {
+                    std::fprintf(f, "%016llx %016llx %u\n", (unsigned long long)x,
+                                 (unsigned long long)y, p);
+                }
+            }
+            std::fclose(f);
+        }
+        seen.clear();
+    }
+    return std::ranges::find(skipped, a) != skipped.end() ||
+           (b && std::ranges::find(skipped, b) != skipped.end());
+}
+} // namespace DcpSkip
+
 bool Rasterizer::SkipsNarrowWaterReader(const GraphicsPipeline* pipeline) {
     const auto* ps = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
     if (!ps || ps->pgm_hash != DcpNarrowWaterReader::kPixelShader || push_data.scene_size != 0 ||
@@ -1003,6 +1057,13 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     if (is_indexed) {
         EmitIndexBuffer();
     }
+    bool draw_indexed = is_indexed;
+    u32 draw_count = regs.num_indices;
+    if (regs.primitive_type == AmdGpu::PrimitiveType::QuadList &&
+        LiverpoolToVK::QuadListAsTriangles()) {
+        draw_count = BindQuadListIndices(is_indexed, index_offset);
+        draw_indexed = true;
+    }
 
     if (needs_barrier) {
         runtime.FlushBarriers();
@@ -1028,17 +1089,20 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     const u32 num_instances = regs.num_instances.NumInstances();
     const u32 first_vertex = vertex_offset;
     const u32 first_instance = instance_offset;
-    const bool skip_water_reader = SkipsNarrowWaterReader(pipeline);
+    const auto* ps_stage = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+    const bool skip_water_reader =
+        SkipsNarrowWaterReader(pipeline) ||
+        DcpSkip::Skip(vs_info.pgm_hash, ps_stage ? ps_stage->pgm_hash : 0, u32(regs.primitive_type));
     scheduler.Record([=](vk::CommandBuffer cmdbuf) {
         if (skip_water_reader) {
             return;
         }
         const auto draw = [&] {
-            if (is_indexed) {
-                cmdbuf.drawIndexed(num_indices, num_instances, 0, s32(first_vertex),
+            if (draw_indexed) {
+                cmdbuf.drawIndexed(draw_count, num_instances, 0, s32(first_vertex),
                                    first_instance);
             } else {
-                cmdbuf.draw(num_indices, num_instances, first_vertex, first_instance);
+                cmdbuf.draw(draw_count, num_instances, first_vertex, first_instance);
             }
         };
         cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, handle);
@@ -1048,9 +1112,41 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
             draw();
         }
     });
+    if (GpuSync::Enabled()) {
+        const auto* ps = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+        GpuSync::Note("draw vs+ps", vs_info.pgm_hash, ps ? ps->pgm_hash : 0, num_indices);
+        GpuSync::Note("target w h | layers colors | instances", (u64(state.width) << 32) | state.height,
+                      (u64(state.num_layers) << 32) | state.num_color_attachments, regs.num_instances.NumInstances());
+    }
     if (FrameCapture::Active()) {
         const auto* ps = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+        char vp_label[96];
+        std::snprintf(vp_label, sizeof(vp_label), "viewport0 xs xo ys yo zs zo | prim %u idx %u inst %u",
+                      u32(regs.primitive_type), num_indices, num_instances);
+        FrameCapture::Buffer(vs_info.pgm_hash, 200, 0, &regs.viewports[0], 24, vp_label);
         FrameCapture::Draw(vs_info.pgm_hash, ps ? ps->pgm_hash : 0, num_indices, num_instances);
+        static const u64 watch = [] {
+            const char* s = std::getenv("DCP_CAPTURE_VS");
+            return s ? std::strtoull(s, nullptr, 16) : 0ull;
+        }();
+        if (watch && vs_info.pgm_hash == watch) {
+            const auto& key = pipeline->GetGraphicsKey();
+            char note[400];
+            std::snprintf(
+                note, sizeof(note),
+                "\n  state vs %08x: mrt %#x colors %u depth %d %ux%u layers %u clear0 %u | logic %u "
+                "wmask0 %#x blend0 %#x samples %u/%u cmode %u | dctl %#x z %d s %d | square %d "
+                "restart %u cull %#x",
+                u32(vs_info.pgm_hash), key.mrt_mask, state.num_color_attachments,
+                int(state.depth_stencil_attachment.has_depth), state.width, state.height,
+                state.num_layers, u32(state.color_attachments[0].is_clear), u32(key.logic_op),
+                u32(key.write_masks[0]), std::bit_cast<u32>(key.blend_controls[0]),
+                u32(key.num_samples), u32(key.color_samples[0]), u32(regs.color_control.mode),
+                std::bit_cast<u32>(regs.depth_control), int(regs.depth_buffer.DepthValid()),
+                int(regs.depth_buffer.StencilValid()), int(bool(square)),
+                u32(regs.enable_primitive_restart), std::bit_cast<u32>(regs.polygon_control));
+            FrameCapture::Note(note);
+        }
         if (const auto& bc = regs.blend_control[0]; bc.enable && regs.color_buffers[0]) {
             char note[128];
             std::snprintf(note, sizeof(note), "\n  blend ps %08x idx %u: src %u dst %u func %u z %u%u",
@@ -1238,10 +1334,15 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
 
     const vk::Pipeline handle = pipeline->Handle();
     const u32 dim_x = cs_program.dim_x, dim_y = cs_program.dim_y, dim_z = cs_program.dim_z;
+    GpuSync::Note("dispatch cs", cs.pgm_hash, (u64(dim_y) << 32) | dim_z, dim_x);
     if (FrameCapture::Active()) {
         FrameCapture::Dispatch(cs.pgm_hash, dim_x, dim_y, dim_z);
     }
+    const bool skip = DcpSkip::Skip(cs.pgm_hash, 0, 0xFFFF);
     scheduler.Record([=](vk::CommandBuffer cmdbuf) {
+        if (skip) {
+            return;
+        }
         cmdbuf.bindPipeline(vk::PipelineBindPoint::eCompute, handle);
         cmdbuf.dispatch(dim_x, dim_y, dim_z);
     });
@@ -1730,6 +1831,20 @@ void Rasterizer::ResolveVertexBuffers(const GraphicsPipeline* pipeline,
     }
 
     v.num_buffers = static_cast<u32>(guest_buffers.size());
+    if (FrameCapture::Active()) {
+        const auto vs_hash = pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash;
+        for (u32 i = 0; i < guest_buffers.size(); ++i) {
+            const auto& b = guest_buffers[i];
+            if (b.base_address && b.GetSize() && memory->IsValidGpuMapping(b.base_address, 0)) {
+                char label[96];
+                std::snprintf(label, sizeof(label), "vertex %u stride %u dfmt %u nfmt %u", i,
+                              b.GetStride(), u32(b.GetDataFmt()), u32(b.GetNumberFmt()));
+                FrameCapture::Buffer(vs_hash, 100 + i, b.base_address,
+                                     reinterpret_cast<const void*>(b.base_address),
+                                     memory->ClampRangeSize(b.base_address, b.GetSize()), label);
+            }
+        }
+    }
 }
 
 void Rasterizer::BindIndexBuffer(u32 index_offset) {
@@ -1760,6 +1875,36 @@ void Rasterizer::ResolveIndexBuffer(u32 index_offset) {
         buffer_cache.ObtainBuffer(index_address, index_buffer_size, false);
     needs_barrier |= runtime.IsBufferAccessed(buffer, offset, index_buffer_size);
     index_bind = {buffer->Handle(), offset, index_type};
+}
+
+u32 Rasterizer::BindQuadListIndices(bool is_indexed, u32 index_offset) {
+    // Each quad v0 v1 v2 v3 becomes triangles v0 v1 v2 and v0 v2 v3 (as the hardware splits it).
+    const auto& regs = Regs();
+    const u32 n = regs.num_indices;
+    const bool is16 = regs.index_buffer_type.index_type == AmdGpu::IndexType::Index16;
+    const VAddr src = regs.index_base_address.Address<VAddr>() + index_offset * (is16 ? 2 : 4);
+    const auto index = [&](u32 i) -> u32 {
+        return !is_indexed ? i
+               : is16      ? reinterpret_cast<const u16*>(src)[i]
+                           : reinterpret_cast<const u32*>(src)[i];
+    };
+    // ponytail: built per draw on the CPU; a cached sequential buffer if quad-heavy scenes show
+    // up in profiles.
+    std::vector<u32> indices;
+    indices.reserve(n / 4 * 6);
+    for (u32 q = 0; q + 4 <= n; q += 4) {
+        const u32 v0 = index(q), v1 = index(q + 1), v2 = index(q + 2), v3 = index(q + 3);
+        indices.insert(indices.end(), {v0, v1, v2, v0, v2, v3});
+    }
+    const u32 count = u32(indices.size());
+    if (indices.empty()) {
+        indices.assign(3, 0); // the stream copy needs some data; a zero-count draw follows
+    }
+    auto& stream = buffer_cache.GetStreamBuffer();
+    const u64 offset = stream.Copy(indices.data(), indices.size() * sizeof(u32), sizeof(u32));
+    index_bind = {stream.Handle(), offset, vk::IndexType::eUint32};
+    EmitIndexBuffer();
+    return count;
 }
 
 void Rasterizer::ResetBindings(bool is_compute) {
@@ -3313,7 +3458,8 @@ void Rasterizer::UpdatePrimitiveState(const bool is_indexed) const {
     const auto is_patch_list_topology = [](const AmdGpu::PrimitiveType type) {
         // Quad and rect lists are emulated using tessellation.
         return type == AmdGpu::PrimitiveType::PatchPrimitive ||
-               type == AmdGpu::PrimitiveType::QuadList || type == AmdGpu::PrimitiveType::RectList;
+               (type == AmdGpu::PrimitiveType::QuadList && !LiverpoolToVK::QuadListAsTriangles()) ||
+               type == AmdGpu::PrimitiveType::RectList;
     };
 
     const auto prim_restart =

@@ -14,6 +14,7 @@
 
 #ifdef __unix__
 #include "common/adaptive_mutex.h"
+#include "common/spin_lock.h"
 #else
 #include "common/spin_lock.h"
 #endif

@@ -23,6 +23,10 @@ bool IsPrimitiveCulled(AmdGpu::PrimitiveType type);
 
 vk::PrimitiveTopology PrimitiveType(AmdGpu::PrimitiveType type);
 
+/// dcp: quad lists drawn as indexed triangle lists instead of through tessellation (the Adreno
+/// driver hangs the GPU on the tessellated quads). Android only; DCP_QUAD_TESS=1 turns it off.
+bool QuadListAsTriangles();
+
 vk::PolygonMode PolygonMode(AmdGpu::PolygonMode mode);
 
 vk::CullModeFlags CullMode(AmdGpu::CullMode mode);

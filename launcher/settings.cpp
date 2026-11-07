@@ -34,7 +34,7 @@ constexpr ManagedSetting kBaseSettings[] = {
     {kUpscaleKey, "0"},
     {kSharpenKey, "1"},
     {kSharpenStrengthKey, "75"},
-    {kRenderResolutionKey, kNativeResolution},
+    {kRenderResolutionKey, kDefaultRenderResolution},
     {kAspectRatioKey, kDefaultAspectRatio},
     {kTrueUltrawideKey, "0"},
     {kGraphicsCardKey, ""},
@@ -306,7 +306,7 @@ extern "C" int dcp_render_resolution(const char* settings_file, const char* imag
         return 0;
     }
     const LauncherSettings settings(PathFromUtf8(settings_file ? settings_file : ""));
-    return dcp_resolution_index(settings.Get(kRenderResolutionKey, kNativeResolution).c_str());
+    return dcp_resolution_index(settings.Get(kRenderResolutionKey, kDefaultRenderResolution).c_str());
 }
 
 extern "C" int dcp_aspect_ratio(const char* settings_file, const char* image_dir) {
@@ -444,7 +444,7 @@ std::string SettingsSummary(const LauncherSettings& settings, const GameBuild* b
              run->render_resolution + "), aspect ratio " + run->aspect_ratio + ", True Ultrawide " +
              OnOff(run->true_ultrawide_effective) + (ultrawide && !run->true_ultrawide_effective ? " (requested on)" : ""));
     } else {
-        line("Render resolution " + settings.Get(kRenderResolutionKey, kNativeResolution) + ", aspect ratio " +
+        line("Render resolution " + settings.Get(kRenderResolutionKey, kDefaultRenderResolution) + ", aspect ratio " +
              settings.Get(kAspectRatioKey, kDefaultAspectRatio) + ", True Ultrawide requested " + OnOff(ultrawide));
     }
 

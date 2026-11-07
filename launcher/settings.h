@@ -28,6 +28,13 @@ inline constexpr char kSharpenKey[] = "rcas";
 inline constexpr char kSharpenStrengthKey[] = "rcas_strength";
 inline constexpr char kRenderResolutionKey[] = "render_resolution";
 inline constexpr char kNativeResolution[] = "native";
+// Android: the screens show the game well below 1080p and the GPU idles at low clocks, so 720p keeps
+// 60 fps with headroom (Adreno 740 at 220 MHz: 62-69% busy at 1080p, 32-47% at 720p).
+#ifdef DCP_ANDROID
+inline constexpr const char* kDefaultRenderResolution = "720p";
+#else
+inline constexpr const char* kDefaultRenderResolution = kNativeResolution;
+#endif
 inline constexpr char kAspectRatioKey[] = "aspect_ratio";
 inline constexpr char kDefaultAspectRatio[] = "16:9";
 // Widens the scene's horizontal view (Hor+) for the aspect ratios wider than 16:9 (dcp_true_ultrawide_scale).

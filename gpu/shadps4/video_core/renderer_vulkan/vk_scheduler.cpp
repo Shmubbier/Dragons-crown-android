@@ -1,11 +1,15 @@
 // SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "dcp_cpu_relax.h"
 #include <thread>
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <unordered_map>
+#include <map>
+#include <string>
+#include <cstring>
 #ifndef _WIN32
 #include <dlfcn.h>
 #endif
@@ -24,6 +28,82 @@
 #include "dcp_threads.h"
 
 namespace Vulkan {
+
+namespace GpuSync {
+namespace {
+struct Entry {
+    const char* kind;
+    u64 a, b;
+    u32 count;
+};
+std::mutex mutex;
+std::vector<Entry> pending; // recorded since the last submission
+} // namespace
+
+bool Enabled() {
+    static const bool on = [] {
+        const char* v = std::getenv("DCP_GPU_SYNC");
+        return v && *v && *v != '0';
+    }();
+    return on;
+}
+
+void Note(const char* kind, u64 hash_a, u64 hash_b, u32 count) {
+    if (!Enabled()) {
+        return;
+    }
+    std::scoped_lock lock{mutex};
+    pending.push_back({kind, hash_a, hash_b, count});
+}
+
+void NoteSite(const std::source_location& where) {
+    std::scoped_lock lock{mutex};
+    if (!pending.empty() && pending.back().kind == where.file_name() && pending.back().a == where.line()) {
+        ++pending.back().count;
+        return;
+    }
+    pending.push_back({where.file_name(), where.line(), 0, 1});
+}
+
+// After each submission (Scheduler::Flush): on a fault or hang, the work in it, newest last.
+static void Submitted(vk::Result result, u64 tick, u32 waits, u32 ms) {
+    std::scoped_lock lock{mutex};
+    if (result != vk::Result::eSuccess || ms >= 200) {
+        std::printf("GPU sync: submission %llu (waits on %u semaphores) ended with %s after %u ms; it held %zu "
+                    "entries:\n",
+                    (unsigned long long)tick, waits, vk::to_string(result).c_str(), ms, pending.size());
+        // Totals over the whole submission (sites by line, draws/dispatches by shader), then
+        // the newest entries in order.
+        std::map<std::pair<std::string, u64>, std::pair<u64, u64>> totals; // -> {entries, count}
+        for (const Entry& e : pending) {
+            const bool site = std::strchr(e.kind, '/') || std::strchr(e.kind, '\\');
+            auto& t = totals[{e.kind, site ? e.a : (std::strncmp(e.kind, "draw", 4) == 0 ||
+                                                     std::strncmp(e.kind, "dispatch", 8) == 0
+                                                         ? e.a ^ (e.b << 32)
+                                                         : 0)}];
+            ++t.first;
+            t.second += e.count;
+        }
+        for (const auto& [key, t] : totals) {
+            std::printf("  total %s %llx: %llu entries, count %llu\n", key.first.c_str(),
+                        (unsigned long long)key.second, (unsigned long long)t.first,
+                        (unsigned long long)t.second);
+        }
+        const size_t first = pending.size() > 60 ? pending.size() - 60 : 0;
+        for (size_t i = first; i < pending.size(); ++i) {
+            const Entry& e = pending[i];
+            if (std::strchr(e.kind, '/') || std::strchr(e.kind, '\\')) { // a source location (NoteSite)
+                std::printf("  recorded at %s:%llu x%u\n", e.kind, (unsigned long long)e.a, e.count);
+            } else {
+                std::printf("  %s %016llx %016llx count %u\n", e.kind, (unsigned long long)e.a,
+                            (unsigned long long)e.b, e.count);
+            }
+        }
+        std::fflush(stdout);
+    }
+    pending.clear();
+}
+} // namespace GpuSync
 
 std::mutex Scheduler::submit_mutex;
 
@@ -280,7 +360,7 @@ void Scheduler::RecorderThread(std::stop_token stoken) {
             DcpThreads::Available() >= 12 ? 200 : 20);
         const auto spin_until = std::chrono::steady_clock::now() + spin_time;
         for (u32 spins = 1; queued_chunks.load(std::memory_order_acquire) == 0; ++spins) {
-            __builtin_ia32_pause();
+            dcp_cpu_relax();
             // The clock is read every 256 pauses, not per iteration.
             if (!(spins & 255) &&
                 (stoken.stop_requested() || std::chrono::steady_clock::now() >= spin_until)) {
@@ -461,6 +541,18 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
 
     ImGui::Core::TextureManager::Submit();
     auto submit_result = instance.GetGraphicsQueue().submit(submit_info, info.fence);
+    if (GpuSync::Enabled()) {
+        vk::Result result = submit_result;
+        const auto start = std::chrono::steady_clock::now();
+        if (result == vk::Result::eSuccess) {
+            const vk::SemaphoreWaitInfo wait = {
+                .semaphoreCount = 1, .pSemaphores = &timeline, .pValues = &signal_value};
+            result = instance.GetDevice().waitSemaphores(wait, 10'000'000'000ull);
+        }
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - start).count();
+        GpuSync::Submitted(result, signal_value, info.num_wait_semas, u32(ms));
+    }
     ASSERT_MSG(submit_result != vk::Result::eErrorDeviceLost, "Device lost during submit");
 
     work_semaphore.Refresh();

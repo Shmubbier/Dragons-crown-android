@@ -6,6 +6,7 @@
 #include "common/assert.h"
 #include "common/debug.h"
 #include "common/div_ceil.h"
+#include "common/spin_lock.h"
 #include "common/error.h"
 #include "common/range_lock.h"
 #include "common/signal_context.h"

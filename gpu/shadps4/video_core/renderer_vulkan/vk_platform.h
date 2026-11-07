@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <source_location>
 #include <fmt/format.h>
 
 #include "common/assert.h"
@@ -54,22 +55,24 @@ void SetObjectName(vk::Device device, const HandleType& handle, const char* form
 }
 
 template <StringLiteral msg = "">
-static void Check(vk::Result r) {
+static void Check(vk::Result r, std::source_location at = std::source_location::current()) {
     if constexpr (msg.len <= 1) {
-        ASSERT_MSG(r == vk::Result::eSuccess, "vk::Result={}", vk::to_string(r));
+        ASSERT_MSG(r == vk::Result::eSuccess, "vk::Result={} at {}:{} ({})", vk::to_string(r), at.file_name(),
+                   at.line(), at.function_name());
     } else {
-        ASSERT_MSG(r == vk::Result::eSuccess, "Failed to {}: vk::Result={}", msg.value,
-                   vk::to_string(r));
+        ASSERT_MSG(r == vk::Result::eSuccess, "Failed to {}: vk::Result={} at {}:{}", msg.value,
+                   vk::to_string(r), at.file_name(), at.line());
     }
 }
 
 template <StringLiteral msg = "", typename T>
-static T Check(vk::ResultValue<T> r) {
+static T Check(vk::ResultValue<T> r, std::source_location at = std::source_location::current()) {
     if constexpr (msg.len <= 1) {
-        ASSERT_MSG(r.result == vk::Result::eSuccess, "vk::Result={}", vk::to_string(r.result));
+        ASSERT_MSG(r.result == vk::Result::eSuccess, "vk::Result={} at {}:{} ({})", vk::to_string(r.result),
+                   at.file_name(), at.line(), at.function_name());
     } else {
-        ASSERT_MSG(r.result == vk::Result::eSuccess, "Failed to {}: vk::Result={}", msg.value,
-                   vk::to_string(r.result));
+        ASSERT_MSG(r.result == vk::Result::eSuccess, "Failed to {}: vk::Result={} at {}:{}", msg.value,
+                   vk::to_string(r.result), at.file_name(), at.line());
     }
     return std::move(r.value);
 }
