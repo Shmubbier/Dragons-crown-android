@@ -236,6 +236,72 @@ int runtime_pad_slot_human(int slot) {
     if (slot==0) return 1;
     return slot>0 && slot<MAX_PADS && slots[slot].gamepad;
 }
+#ifdef __ANDROID__
+/* Android: on-screen touch controls for player 1 while no gamepad is connected (android/touch_layout.h).
+ * The overlay draws them from the state published here; torn reads of the stick only move a drawing. */
+#include "touch_layout.h"
+static _Atomic uint32_t touch_held;
+static _Atomic int touch_visible=1;
+static struct { SDL_FingerID id; volatile int active; volatile float ox, oy, kx, ky; } touch_stick;
+int dcp_touch_controls_visible(void) { return touch_visible; }
+uint32_t dcp_touch_held_buttons(void) { return touch_held; }
+int dcp_touch_stick(float *ox, float *oy, float *kx, float *ky) {
+    *ox=touch_stick.ox; *oy=touch_stick.oy; *kx=touch_stick.kx; *ky=touch_stick.ky;
+    return touch_stick.active;
+}
+static float touch_aspect(void) {
+    SDL_Window *w=SDL_GetKeyboardFocus();
+    int width=0, height=0;
+    if (w) SDL_GetWindowSize(w,&width,&height);
+    return width>0 && height>0 ? (float)width/(float)height : 16.0f/9.0f;
+}
+static void sample_touch(PadData *d, bool gamepad) {
+    touch_visible=!gamepad;
+    if (gamepad) { touch_held=0; touch_stick.active=0; return; }
+    const float aspect=touch_aspect();
+    uint32_t held=0;
+    int stick_seen=0, devices=0;
+    SDL_TouchID *ids=SDL_GetTouchDevices(&devices);
+    for (int t=0;ids && t<devices;++t) {
+        int count=0;
+        SDL_Finger **fingers=SDL_GetTouchFingers(ids[t],&count);
+        for (int i=0;fingers && i<count;++i) {
+            const float x=fingers[i]->x, y=fingers[i]->y;
+            if (touch_stick.active && fingers[i]->id==touch_stick.id) {
+                touch_stick.kx=x; touch_stick.ky=y; stick_seen=1;
+                continue;
+            }
+            int hit=0;
+            for (size_t b=0;b<DCP_TOUCH_BUTTON_COUNT;++b) {
+                const DcpTouchButton *button=&dcp_touch_buttons[b];
+                const float dx=(x-button->x)*aspect, dy=y-button->y, reach=button->r*DCP_TOUCH_HIT_SCALE;
+                if (dx*dx+dy*dy<=reach*reach) { held|=button->button; hit=1; }
+            }
+            if (!hit && !touch_stick.active && x<DCP_TOUCH_STICK_MAX_X && y>DCP_TOUCH_STICK_MIN_Y) {
+                touch_stick.id=fingers[i]->id;
+                touch_stick.ox=touch_stick.kx=x; touch_stick.oy=touch_stick.ky=y;
+                touch_stick.active=1; stick_seen=1;
+            }
+        }
+        SDL_free(fingers);
+    }
+    SDL_free(ids);
+    if (!stick_seen) touch_stick.active=0;
+    if (touch_stick.active) {
+        float sx=(touch_stick.kx-touch_stick.ox)*aspect/DCP_TOUCH_STICK_RADIUS;
+        float sy=(touch_stick.ky-touch_stick.oy)/DCP_TOUCH_STICK_RADIUS;
+        const float length=sqrtf(sx*sx+sy*sy);
+        if (length>1.0f) { sx/=length; sy/=length; }
+        d->left_x=(uint8_t)(128.0f+sx*127.0f);
+        d->left_y=(uint8_t)(128.0f+sy*127.0f);
+    }
+    d->buttons|=held;
+    if (held & BTN_L2) d->l2=255;
+    if (held & BTN_R2) d->r2=255;
+    if ((held & BTN_TOUCHPAD) && !d->touch_count) touch_click(d,0);
+    touch_held=held;
+}
+#endif
 static void sample_host(int slot, PadData *d) {
     memset(d,0,sizeof(*d));
     d->left_x=d->left_y=d->right_x=d->right_y=128;
@@ -278,6 +344,9 @@ static void sample_host(int slot, PadData *d) {
         // Back/Select on pads without a touch surface is a left-side click.
         if ((d->buttons & BTN_TOUCHPAD) && !d->touch_count) touch_click(d,0);
     }
+#ifdef __ANDROID__
+    if (slot==0) sample_touch(d,g!=NULL);
+#endif
     /* The keyboard works with or without a gamepad: its buttons add to the pad's, and a stick
      * follows the keys only while one of them is held. */
     if (!k) return;
