@@ -20,7 +20,9 @@
 #else
 #include <sys/syscall.h>
 #include <sys/mman.h>
+#if !DCP_GUEST_TRANSLATED
 #include <asm/prctl.h>
+#endif
 #endif
 #define ERR(n) ((int32_t)(UINT32_C(0x80020000)|(n)))
 #define ATTR_MAGIC UINT32_C(0x41545452)
@@ -45,7 +47,7 @@ typedef struct GuestThread {
     void *argument, *result;
     ThreadAttr attr;
     char name[32];
-    int detached, finished, joined, host_owned;
+    int detached, finished, joined, host_owned, exited;
 #ifdef _WIN32
     dcp_jmp_buf exit_jump; /* no SEH unwinding through guest frames */
 #else
@@ -110,9 +112,14 @@ static void set_gs(void *base) {
 }
 #define tls_block_alloc(size) _aligned_malloc(size,64)
 #else
+#if DCP_GUEST_TRANSLATED
+/* The emulated CPU keeps the GS base per emulator. */
+static void set_gs(void *base) { guest_cpu_set_tls(base); }
+#else
 static void set_gs(void *base) {
     if (syscall(SYS_arch_prctl,ARCH_SET_GS,(unsigned long)base)) { perror("STOP: arch_prctl(ARCH_SET_GS)"); exit(21); }
 }
+#endif
 #define tls_block_alloc(size) aligned_alloc(64,size)
 #endif
 /* Build TCB/static TLS for the calling host thread and point GS at it. */
@@ -299,9 +306,18 @@ static void set_host_name(const char *name) {
 #endif
 static void *host_start(void *p) {
     GuestThread *t=p;
+#if DCP_GUEST_TRANSLATED
+    /* The PS4 stack is the emulator's; this host thread keeps its own native stack. */
+    if (t->stack) guest_cpu_set_stack(t->stack,t->stack_size);
+    attach(t);
+    set_host_name(t->name);
+    void *result=(void *)(uintptr_t)guest_call1(t->entry,t->argument);
+    if (!t->exited) t->result=result;
+#else
     attach(t);
     set_host_name(t->name);
     if (!exit_setjmp(t)) t->result=t->entry(t->argument);
+#endif
     runtime_thread_keys_cleanup();
     pthread_mutex_lock(&lock); t->finished=1; ++exited;
 #ifndef _WIN32
@@ -332,8 +348,12 @@ static int32_t create(GuestThread **out,ThreadAttr **attr_slot,GuestEntry entry,
     reap_detached();
     stack_bytes=(stack_bytes+16383)&~(size_t)16383;
     t->stack=runtime_stack_acquire(stack_bytes);
+#if DCP_GUEST_TRANSLATED
+    if (t->stack) t->stack_size=stack_bytes;
+#else
     if (t->stack) { t->stack_size=stack_bytes; pthread_attr_setstack(&host,t->stack,stack_bytes); }
     else pthread_attr_setstacksize(&host,stack_bytes);
+#endif
 #endif
     publish(t);
     /* Publish the handle before the thread can run and inspect itself. */
@@ -382,11 +402,34 @@ static ABI int32_t thread_detach(GuestThread *t) {
 #endif
     return 0;
 }
-static ABI int32_t thread_cancel(GuestThread *t) {
-    if (!find_thread(t) || t->finished) return ERR(3);
-    fputs("STOP: scePthreadCancel of a running thread is not supported\n",stderr);
-    exit(21);
+static int thread_running(GuestThread *t) {
+    int running=0;
+    pthread_mutex_lock(&lock);
+    for (GuestThread *x=threads;x;x=x->next) if (x==t) { running=!x->finished; break; }
+    pthread_mutex_unlock(&lock);
+    return running;
 }
+/* ponytail: no cancellation points. The thread the game cancels on leaving the Inn (an ally loader) has always
+ * finished by then on PC; a slower host (Android) waits up to 2 s for it, then lets it run on. Real deferred
+ * cancellation if a cancelled thread ever has to stop early. */
+static ABI int32_t thread_cancel(GuestThread *t) {
+    if (!thread_running(t)) return ERR(3);
+    for (int i=0;i<200;++i) {
+        usleep(10000);
+        if (!thread_running(t)) return 0;
+    }
+    puts("Runtime: scePthreadCancel: the thread is still running, it is left to finish");
+    return 0;
+}
+#if DCP_GUEST_TRANSLATED
+/* Ends the thread's guest_call (host_start) when this call returns; no guest code runs after it. */
+static ABI void thread_exit(void *value) {
+    GuestThread *t=runtime_thread_current();
+    if (t->host_owned) { fputs("STOP: pthread_exit on host-owned/main thread\n",stderr); exit(21); }
+    t->result=value; t->exited=1;
+    guest_cpu_request_exit();
+}
+#else
 static ABI __attribute__((noreturn)) void thread_exit(void *value) {
     GuestThread *t=runtime_thread_current();
     if (t->host_owned) { fputs("STOP: pthread_exit on host-owned/main thread\n",stderr); exit(21); }
@@ -394,6 +437,7 @@ static ABI __attribute__((noreturn)) void thread_exit(void *value) {
     /* No host unwinder: guest frames have no registered FDEs. */
     exit_longjmp(t);
 }
+#endif
 static ABI int32_t thread_yield(void) { sched_yield(); return 0; }
 static ABI int32_t thread_get_prio(GuestThread *t,int *prio) {
     if (!find_thread(t)) return ERR(3);

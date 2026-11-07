@@ -14,7 +14,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <x86intrin.h>
 #ifndef _WIN32
 #include <sys/random.h>
 #include <sys/resource.h>
@@ -87,18 +86,19 @@ static ABI uint64_t process_time_counter(void) {
     return (uint64_t)(t.tv_sec-process_start.tv_sec)*1000000000+(uint64_t)(t.tv_nsec-process_start.tv_nsec);
 }
 static ABI uint64_t process_time_frequency(void) { return 1000000000; }
-static ABI uint64_t read_tsc(void) { return __rdtsc(); }
+static ABI uint64_t read_tsc(void) { return guest_cpu_tsc(); }
 static uint64_t tsc_hz;
 static ABI uint64_t tsc_frequency(void) {
+    if (!tsc_hz) tsc_hz=guest_cpu_tsc_frequency();
     if (!tsc_hz) {
         struct timespec a,b,nap={0,20000000};
-        clock_gettime(CLOCK_MONOTONIC,&a); uint64_t t0=__rdtsc();
+        clock_gettime(CLOCK_MONOTONIC,&a); uint64_t t0=guest_cpu_tsc();
 #ifdef _WIN32
         (void)nap; compat_sleep_ns(20000000);
 #else
         nanosleep(&nap,NULL);
 #endif
-        clock_gettime(CLOCK_MONOTONIC,&b); uint64_t t1=__rdtsc();
+        clock_gettime(CLOCK_MONOTONIC,&b); uint64_t t1=guest_cpu_tsc();
         uint64_t ns=(uint64_t)(b.tv_sec-a.tv_sec)*1000000000+(uint64_t)(b.tv_nsec-a.tv_nsec);
         tsc_hz=(t1-t0)*1000000000/(ns ? ns : 1);
     }
@@ -275,7 +275,7 @@ static ABI int32_t thread_once(int32_t *once,void (ABI *routine)(void)) {
         int32_t state=__atomic_load_n(once,__ATOMIC_ACQUIRE);
         if (state==1) return 0;
         if (state==0 && __atomic_compare_exchange_n(once,&state,2,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE)) {
-            routine();
+            guest_call0(routine);
             __atomic_store_n(once,1,__ATOMIC_RELEASE);
             return 0;
         }
@@ -319,7 +319,7 @@ void runtime_thread_keys_cleanup(void) {
             void *value=key_values[i];
             if (!value || !keys[i].used || !keys[i].destructor) continue;
             key_values[i]=NULL; any=1;
-            keys[i].destructor(value);
+            guest_call1(keys[i].destructor,value);
         }
         if (!any) break;
     }

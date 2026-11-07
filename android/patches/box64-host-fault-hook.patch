@@ -1,0 +1,24 @@
+diff --git a/src/libtools/signals.c b/src/libtools/signals.c
+index 09a8e92..4922340 100644
+--- a/src/libtools/signals.c
++++ b/src/libtools/signals.c
+@@ -836,6 +836,10 @@ static pthread_mutex_t mutex_dynarec_prot = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER
+ extern int box64_quit;
+ extern int box64_exit_code;
+ 
++// Embedding programs (the Dragon's Crown Pro Android port) see host faults first: GPU page tracking
++// write-protects guest memory and resolves its own faults. Returns nonzero when the fault was handled.
++int (*box64_host_fault_hook)(void* ucontext, void* address) = NULL;
++
+ void my_box64signalhandler(int32_t sig, siginfo_t* info, void * ucntx)
+ {
+     sig = signal_to_x64(sig);
+@@ -845,6 +849,8 @@ void my_box64signalhandler(int32_t sig, siginfo_t* info, void * ucntx)
+         signal_jmpbuf_active = 0;
+         longjmp(SIG_JMPBUF, 1);
+     }
++    if (box64_host_fault_hook && (sig==X64_SIGSEGV || sig==X64_SIGBUS) && box64_host_fault_hook(ucntx, info->si_addr))
++        return;
+     ucontext_t *p = (ucontext_t *)ucntx;
+     void* addr = (void*)info->si_addr;  // address that triggered the issue
+     void* rsp = NULL;

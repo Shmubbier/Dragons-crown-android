@@ -25,6 +25,10 @@ typedef void (ABI *FiberEntry)(uint64_t arg_on_initialize, uint64_t arg_on_run);
 typedef struct HostFiber {
 #ifdef _WIN32
     void *fiber;
+#elif DCP_GUEST_TRANSLATED
+    void *stack, *sp;          /* guest (PS4) stack for the fiber's emulator; sp: saved native stack pointer */
+    size_t stack_size;
+    void *native_stack, *emu;  /* the native stack the fiber's emulator loop runs on */
 #else
     void *stack, *sp; /* sp: saved stack pointer while the fiber is not running */
     size_t stack_size;
@@ -43,6 +47,9 @@ static __thread struct {
     void *thread_fiber;
 #else
     void *thread_sp;
+#endif
+#if DCP_GUEST_TRANSLATED
+    void *thread_emu;
 #endif
     HostFiber *current;
     uint64_t *thread_return_out;
@@ -79,6 +86,51 @@ static int host_thread_prepare(void) {
 static void host_run_fiber(HostFiber *to) { SwitchToFiber(to->fiber); }
 static void host_switch_fiber(HostFiber *from, HostFiber *to) { (void)from; SwitchToFiber(to->fiber); }
 static void host_return_to_thread(HostFiber *from) { (void)from; SwitchToFiber(fiber_tls.thread_fiber); }
+#elif DCP_GUEST_TRANSLATED
+/* arm64: each fiber has its own emulator on its own PS4 stack, and that emulator's loop runs on its own native stack.
+ * A switch makes the destination's emulator current, then swaps native stacks (guest_call_arm64.S); the emulator
+ * left behind stays parked inside its sceFiber* bridge call until it is switched back in. */
+#include <sys/mman.h>
+#define FIBER_NATIVE_STACK (512u * 1024u)
+void dcp_fiber_switch(void **save, void *to);
+void dcp_fiber_start(void);
+static void fiber_main(HostFiber *f) {
+    guest_call_on(f->emu, (uintptr_t)f->entry, f->arg_on_initialize, f->arg_to_deliver);
+    fiber_returned(f);
+}
+static int host_fiber_create(HostFiber *f, size_t size) {
+    f->stack_size = (size + 16383) & ~(size_t)16383;
+    f->stack = runtime_stack_acquire(f->stack_size);
+    if (!f->stack) return 0;
+    f->native_stack = mmap(NULL, FIBER_NATIVE_STACK, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (f->native_stack == MAP_FAILED) { runtime_stack_release(f->stack, f->stack_size); return 0; }
+    f->emu = guest_cpu_fiber_emu(f->stack, f->stack_size);
+    /* The first switch restores x19 (the fiber), x20 (fiber_main) and x30 (dcp_fiber_start) from this frame. */
+    uint64_t *frame = (uint64_t *)((char *)f->native_stack + FIBER_NATIVE_STACK - 160 - 64);
+    memset(frame, 0, 160);
+    frame[0] = (uint64_t)(uintptr_t)f;
+    frame[1] = (uint64_t)(uintptr_t)fiber_main;
+    frame[11] = (uint64_t)(uintptr_t)dcp_fiber_start;
+    f->sp = frame;
+    return 1;
+}
+static void host_fiber_destroy(HostFiber *f) {
+    runtime_stack_release(f->stack, f->stack_size);
+    munmap(f->native_stack, FIBER_NATIVE_STACK);
+}
+static int host_thread_prepare(void) { fiber_tls.thread_emu = guest_cpu_current_emu(); return 1; }
+static void host_run_fiber(HostFiber *to) {
+    guest_cpu_use_emu(to->emu);
+    dcp_fiber_switch(&fiber_tls.thread_sp, to->sp);
+}
+static void host_switch_fiber(HostFiber *from, HostFiber *to) {
+    guest_cpu_use_emu(to->emu);
+    dcp_fiber_switch(&from->sp, to->sp);
+}
+static void host_return_to_thread(HostFiber *from) {
+    guest_cpu_use_emu(fiber_tls.thread_emu);
+    dcp_fiber_switch(&from->sp, fiber_tls.thread_sp);
+}
 #else
 /* dcp_fiber_switch(&save, to): pushes the callee-saved registers and the SSE/x87 control words on the current stack,
  * stores its pointer in *save and continues on `to`, a stack prepared the same way. */

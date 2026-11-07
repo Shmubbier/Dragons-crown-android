@@ -170,10 +170,8 @@ static ABI int32_t font_memory_term(FontMemory *memory) {
     if (!memory) return ERR_INVALID_PARAMETER;
     if (memory->kind!=MEM_MAGIC) return ERR_INVALID_MEMORY;
     if (memory->destroy_callback) {
-        typedef void (ABI *Destroy)(FontMemory *, void *, void *);
-        Destroy destroy=(Destroy)memory->destroy_callback;
         memory->kind=0;
-        destroy(memory,memory->mspace,memory->destroy_object);
+        guest_call3(memory->destroy_callback,memory,memory->mspace,memory->destroy_object);
         return FONT_OK;
     }
     memset(memory,0,sizeof(*memory));

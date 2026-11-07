@@ -32,8 +32,8 @@
 #include "isa_emulate.h"
 #include "lzcnt_compat.h"
 #include "discord_presence.h"
-#if !defined(__x86_64__) || !defined(__GNUC__)
-#error Dragon's Crown Pro PC requires x86-64 GCC or Clang (including MinGW).
+#if !(defined(__x86_64__) || defined(__aarch64__)) || !defined(__GNUC__)
+#error Dragon's Crown Pro PC requires x86-64 or arm64 GCC or Clang (including MinGW).
 #endif
 #ifdef _WIN32
 #include <windows.h>
@@ -100,6 +100,7 @@ static void protect(void *p, size_t size, unsigned flags) {
 #else
     int mode = ((flags & 4) ? PROT_READ : 0) | ((flags & 2) ? PROT_WRITE : 0) | ((flags & 1) ? PROT_EXEC : 0);
     if (mprotect(p, size, mode)) fail("mprotect failed");
+    guest_cpu_note_protection(p, size, mode);
 #endif
 }
 static ABI __attribute__((noreturn)) void unresolved(uint32_t id, uintptr_t argument) {
@@ -118,7 +119,7 @@ static ABI __attribute__((noreturn)) void unresolved(uint32_t id, uintptr_t argu
     runtime_log_flush();
     _exit(20); /* no destructors: GPU, audio and guest threads are still running */
 }
-#ifndef _WIN32
+#if !defined(_WIN32) && !DCP_GUEST_TRANSLATED
 /* enter_on_stack(entry, arg0, arg1, stack_top): call entry(arg0,arg1) on a new stack. */
 void enter_on_stack(void *entry, void *arg0, void *arg1, void *top);
 __asm__(".text\n.globl enter_on_stack\nenter_on_stack:\n"
@@ -127,6 +128,13 @@ __asm__(".text\n.globl enter_on_stack\nenter_on_stack:\n"
         " mov %rbp,%rsp\n pop %rbp\n ret\n");
 #endif
 static ABI void guest_exit(void) { puts("Runtime: process finalizer callback reached"); }
+#if DCP_GUEST_TRANSLATED
+static void log_cpu(void) { puts("CPU: arm64 host; the game's x86-64 code is translated by Box64"); }
+static int cpu_usable(char *cause, size_t cause_size, char *advice, size_t advice_size) {
+    (void)cause; (void)cause_size; (void)advice; (void)advice_size;
+    return 1;
+}
+#else
 static void log_cpu(void) {
     char name[64], sets[96];
     const IsaHostFeatures host=isa_host_features();
@@ -143,6 +151,7 @@ static int cpu_usable(char *cause, size_t cause_size, char *advice, size_t advic
     snprintf(advice,advice_size,"The game needs an Intel Core 2nd generation (Sandy Bridge), AMD FX or newer processor.");
     return 0;
 }
+#endif
 #ifndef _WIN32
 static const char *renderer_settings_file;
 static int system_usable(char *cause, size_t cause_size, char *advice, size_t advice_size) {
@@ -287,7 +296,7 @@ static uint64_t patch_tcb_loads(const Segment *segments, uint64_t count) {
     return patched;
 }
 #endif
-#ifndef _WIN32
+#if !defined(_WIN32) && !DCP_GUEST_TRANSLATED
 static void fault(int sig, siginfo_t *info, void *context) {
     /* GPU page tracking (write-protected guest pages) is resolved first. */
     if (gpu_enabled && sig == SIGSEGV && dcpgpu_handle_fault(context, info->si_addr)) return;
@@ -349,7 +358,7 @@ static void fault(int sig, siginfo_t *info, void *context) {
     _exit(128 + sig);
 }
 #endif
-#ifndef _WIN32
+#if !defined(_WIN32) && !DCP_GUEST_TRANSLATED
 /* Watchdog: dump RIP and the rbp frame chain of every thread (guest offsets
  * when inside the image). Reads use process_vm_readv so bad frames cannot fault. */
 static uintptr_t exe_base;
@@ -396,6 +405,33 @@ static void watchdog(int sig, siginfo_t *info, void *context) {
     usleep(100000);
     runtime_log_flush();
     _exit(128 + sig);
+}
+#endif
+#if DCP_GUEST_TRANSLATED
+/* Box64 owns SIGSEGV/SIGBUS/SIGILL (it tracks writes to translated code and reports guest faults). */
+static void watchdog(int sig, siginfo_t *info, void *context) {
+    (void)info; (void)context;
+    runtime_log_mark_crash();
+    const char head[]="STOP: watchdog timeout\n";
+    { ssize_t written_=write(2,head,sizeof(head)-1); (void)written_; }
+    runtime_log_flush();
+    _exit(128 + sig);
+}
+/* The same chain the x86-64 fault() handler runs, offered first by Box64's handler: GPU page tracking, then a
+ * speculative guest memory read of the runtime (runtime_memory.c). Anything else is Box64's to report. */
+static int host_fault(void *context, void *address) {
+    if (gpu_enabled && dcpgpu_handle_fault(context, address)) return 1;
+    if (runtime_fault_recover) {
+        sigjmp_buf *recover = runtime_fault_recover;
+        runtime_fault_recover = NULL;
+        sigset_t unblock;
+        sigemptyset(&unblock);
+        sigaddset(&unblock, SIGSEGV);
+        sigaddset(&unblock, SIGBUS);
+        pthread_sigmask(SIG_UNBLOCK, &unblock, NULL);
+        siglongjmp(*recover, 1);
+    }
+    return 0;
 }
 #endif
 /* param.sfo lookup: string or integer value of key, 0 when absent. */
@@ -508,7 +544,7 @@ int main(int argc, char **argv) {
         printf("Boot image written to %s\n", argv[3]);
         return 0;
     }
-#ifndef _WIN32
+#if !defined(_WIN32) && defined(M_ARENA_MAX)
     /* Keep host heap objects handed to the guest (thread handles, TLS) in the
        non-PIE brk heap, i.e. below 1 TiB: the guest packs pointers into 40 bits. */
     mallopt(M_ARENA_MAX,1);
@@ -688,6 +724,7 @@ int main(int argc, char **argv) {
     (void)timeout_seconds; /* no watchdog on Windows */
 #else
     page_size = (size_t)sysconf(_SC_PAGESIZE);
+#if !DCP_GUEST_TRANSLATED
     struct sigaction sa = {0}; sa.sa_sigaction = fault; sa.sa_flags = SA_SIGINFO;
     sigemptyset(&sa.sa_mask);
     sigaction(SIGSEGV, &sa, NULL); sigaction(SIGILL, &sa, NULL); sigaction(SIGBUS, &sa, NULL);
@@ -695,9 +732,16 @@ int main(int argc, char **argv) {
     if (dladdr((void *)main,&self_info)) exe_base=(uintptr_t)self_info.dli_fbase;
     struct sigaction dump = {0}; dump.sa_sigaction = thread_dump; dump.sa_flags = SA_SIGINFO|SA_RESTART;
     sigemptyset(&dump.sa_mask); sigaction(SIGUSR2, &dump, NULL);
+#endif
     struct sigaction alarm_action = {0}; alarm_action.sa_sigaction = watchdog; alarm_action.sa_flags = SA_SIGINFO;
     sigemptyset(&alarm_action.sa_mask); sigaction(SIGALRM, &alarm_action, NULL);
+    /* A peer that closes a socket (the lobby's TLS stream, a router's UPnP answer) makes the write fail, not the game. */
+    signal(SIGPIPE, SIG_IGN);
     alarm(timeout_seconds); /* 0 disables the watchdog */
+#endif
+    guest_cpu_init();
+#if DCP_GUEST_TRANSLATED
+    guest_cpu_set_fault_handler(host_fault);
 #endif
     FILE *f = fopen(boot, "rb");
     if (!f) fail("cannot open boot file; install the game from the launcher first");
@@ -797,7 +841,14 @@ int main(int argc, char **argv) {
     const size_t skip_intro_stub_area = known_build && skip_intro_requested ? skip_intro_stub_bytes() : 0;
     const int gallery_unlock_requested=gallery_unlock_wanted(dcp_unlock_gallery(settings_file));
     const size_t gallery_unlock_stub_area = known_build && game_build.unlock_gallery && gallery_unlock_requested ? gallery_unlock_stub_bytes() : 0;
+#if DCP_GUEST_TRANSLATED
+    const int lzcnt_rewrite = 0; /* Box64 implements LZCNT */
+    /* Hooks whose x86 stubs call native handlers directly are not bridged yet. */
+    const int native_hooks = 0;
+#else
     const int lzcnt_rewrite = lzcnt_compat_needed(isa_host_features()) || getenv("DCP_EMULATE_LZCNT");
+    const int native_hooks = 1;
+#endif
     const size_t lzcnt_stub_bytes = lzcnt_rewrite ? lzcnt_compat_stub_bytes() : 0;
     const size_t hook_bytes = round_page(cheat_stub_bytes + save_stub_bytes + voice_stub_bytes + system_type_stub_bytes +
                                          ultrawide_stub_bytes + lzcnt_stub_bytes + party_stub_bytes + exit_game_stub_bytes + skip_intro_stub_area +
@@ -847,7 +898,7 @@ int main(int argc, char **argv) {
         unsigned char *t = traps + i * 32;
         /* SysV: mov edi, index; movabs rax, handler; jmp rax. No fake return values. */
         uint32_t index = (uint32_t)i;
-        uintptr_t handler = (uintptr_t)unresolved;
+        uintptr_t handler = guest_host_function((const void *)unresolved, "unresolved import");
         t[0] = 0x48; t[1] = 0x89; t[2] = 0xfe; /* mov rsi,rdi: preserve arg0 */
         t[3] = 0xbf; memcpy(t + 4, &index, 4);
         t[8] = 0x48; t[9] = 0xb8; memcpy(t + 10, &handler, 8);
@@ -870,6 +921,11 @@ int main(int argc, char **argv) {
                         : (uintptr_t)image + relocs[i].value;
         if (relocs[i].kind) {
             uintptr_t resolved = runtime_resolve(names[relocs[i].value], relocs[i].kind == 2);
+#if DCP_GUEST_TRANSLATED
+            /* Runtime functions are native code: the game reaches them through Box64 bridges. */
+            if (resolved && relocs[i].kind == 1 && resolved - (uintptr_t)image >= size)
+                resolved = guest_host_function((const void *)resolved, names[relocs[i].value]);
+#endif
             if (resolved) value = resolved + relocs[i].addend;
             else if (native_libc && bindings[relocs[i].value]) {
                 uint64_t address=bindings[relocs[i].value];
@@ -945,6 +1001,7 @@ int main(int argc, char **argv) {
             fail_running(message);
         }
     }
+#if !DCP_GUEST_TRANSLATED
     if (lzcnt_rewrite) {
         const char *rewritten_build="";
         uint8_t *lzcnt_stubs=image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes+system_type_stub_bytes+ultrawide_stub_bytes;
@@ -966,34 +1023,35 @@ int main(int argc, char **argv) {
         }
         printf("LZCNT: rewritten at %d sites (%s)\n",LZCNT_SITE_COUNT,rewritten_build);
     }
-    if (runtime_cheats_hooks_wanted(known_build && game_build.cheats)) {
+#endif
+    if (native_hooks && runtime_cheats_hooks_wanted(known_build && game_build.cheats)) {
         if (!game_build.features_by_signature) runtime_cheat_hooks_install(image,size,entry,image+round_page(size),hook_bytes);
         else if (located.cheats) runtime_cheat_hooks_install_located(image,size,entry,&located.cheat_sites,image+round_page(size),hook_bytes);
         else printf("Cheats: unavailable, %s\n",located.cheat_failure);
     }
-    if (known_build) startup_save_hook_install(image,size,entry,image+round_page(size)+cheat_stub_bytes,hook_bytes-cheat_stub_bytes);
-    if (known_build && game_build.japanese_npc_voices && voice_hooks_enabled() &&
+    if (native_hooks && known_build) startup_save_hook_install(image,size,entry,image+round_page(size)+cheat_stub_bytes,hook_bytes-cheat_stub_bytes);
+    if (native_hooks && known_build && game_build.japanese_npc_voices && voice_hooks_enabled() &&
         (!game_build.features_by_signature || dcp_npc_voice_resources(app0))) {
         uint8_t *voice_stubs=image+round_page(size)+cheat_stub_bytes+save_stub_bytes;
         if (!game_build.features_by_signature) voice_hooks_install(image,size,entry,voice_stubs,voice_stub_bytes);
         else if (located.voices) voice_hooks_install_located(image,size,entry,&located.voice_sites,voice_stubs,voice_stub_bytes);
         else printf("Japanese NPC Voices: unavailable, %s\n",located.voice_failure);
     }
-    if (known_build && runtime_online_active())
+    if (native_hooks && known_build && runtime_online_active())
         system_type_hook_install(image,size,entry,image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes,
                                  system_type_stub_bytes,runtime_online_system_type);
-    if (known_build && runtime_online_active() && !runtime_cheats_hooks_wanted(1)) {
+    if (native_hooks && known_build && runtime_online_active() && !runtime_cheats_hooks_wanted(1)) {
         if (party_located)
             party_hook_install_located(image,size,entry,&party_sites,
                                        image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes+system_type_stub_bytes+ultrawide_stub_bytes+lzcnt_stub_bytes,
                                        party_stub_bytes);
         else printf("Party: not reported, %s\n",party_failure);
     }
-    const int skip_intro_applied=skip_intro_install(image,size,entry,known_build ? build_key : NULL,skip_intro_requested,
+    const int skip_intro_applied=skip_intro_install(image,size,entry,known_build ? build_key : NULL,native_hooks && skip_intro_requested,
                                                     image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes+system_type_stub_bytes+ultrawide_stub_bytes+lzcnt_stub_bytes+party_stub_bytes+exit_game_stub_bytes,
                                                     skip_intro_stub_area);
     const int gallery_unlock_applied=gallery_unlock_install(image,size,entry,known_build && game_build.unlock_gallery ? build_key : NULL,
-                                                            gallery_unlock_requested,
+                                                            native_hooks && gallery_unlock_requested,
                                                             image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes+system_type_stub_bytes+ultrawide_stub_bytes+lzcnt_stub_bytes+party_stub_bytes+exit_game_stub_bytes+skip_intro_stub_area,
                                                             gallery_unlock_stub_area);
     const int japanese_menu_buttons=menu_buttons_wanted(dcp_japanese_menu_buttons(settings_file));
@@ -1001,7 +1059,7 @@ int main(int argc, char **argv) {
     exit_game_set_accept_east(japanese_menu_buttons && menu_buttons_applied);
     const unsigned skip_applied=skip_offers_install(image,size,known_build ? build_key : NULL,
                                                     skip_offers_wanted(dcp_skip_offers(settings_file)));
-    if (known_build && game_build.exit_game) {
+    if (native_hooks && known_build && game_build.exit_game) {
         if (exit_game_located) {
             exit_game_set_handler(dcpgpu_request_close);
             exit_game_hook_install_located(image,size,entry,&exit_game_sites,
@@ -1012,7 +1070,7 @@ int main(int argc, char **argv) {
     printf("DCP: render resolution %dx%d (%s)%s\n",render_target.width,render_target.height,render_resolution->key,
            render_target.pro_memory ? ", PS4 Pro memory path" : "");
     printf("DCP: Aspect ratio: %s, render target %dx%d\n",aspect_ratio->name,render_target.width,render_target.height);
-    const int ultrawide_effective=install_true_ultrawide(true_ultrawide_requested,known_build ? &game_build : NULL,&located,size,entry,
+    const int ultrawide_effective=install_true_ultrawide(native_hooks && true_ultrawide_requested,known_build ? &game_build : NULL,&located,size,entry,
                            ultrawide_bytes ? round_page(size)+hook_bytes : 0,
                            image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes+system_type_stub_bytes);
     const DcpRunSettings run_settings={known_build ? game_build.label : NULL,runtime_online_play_enabled(),
@@ -1052,8 +1110,7 @@ int main(int argc, char **argv) {
         dcp_startup_phase("linked modules initialization");
         for (uint64_t m=0;m<module_count;++m) {
             printf("Starting linked module %" PRIu64 " at image offset 0x%" PRIx64 "; native bindings=%" PRIu64 "\n",m,modules[m].init,nb);
-            typedef int (ABI *ModuleInit)(uint64_t,void *,void *);
-            int result=((ModuleInit)(image+modules[m].init))(0,NULL,NULL);
+            int result=(int)guest_call3(image+modules[m].init,0,NULL,NULL);
             printf("Module %" PRIu64 " initializer returned %d\n",m,result);
             if (result) fail("module initializer failed");
         }
@@ -1070,7 +1127,12 @@ int main(int argc, char **argv) {
     enum { MAIN_STACK=8*1024*1024 };
     unsigned char *stack=runtime_low_map(MAIN_STACK,PROT_READ|PROT_WRITE);
     if (!stack) fail("cannot allocate guest main stack");
+#if DCP_GUEST_TRANSLATED
+    guest_cpu_set_stack(stack,MAIN_STACK);
+    guest_call2(image+entry,&params,guest_host_function((const void *)guest_exit,"guest_exit"));
+#else
     enter_on_stack(image+entry,&params,(void *)guest_exit,stack+MAIN_STACK-64);
+#endif
 #endif
     fail("entry unexpectedly returned");
 }

@@ -40,7 +40,13 @@ static uint64_t pool_size_bytes(void) {
 #define FLEXIBLE_SIZE (UINT64_C(448) * 1024 * 1024)
 #define PAGE UINT64_C(16384)
 #define USER_MIN UINT64_C(0x1000000000)
+#if DCP_GUEST_TRANSLATED
+/* Android arm64 kernels give processes a 39-bit (512 GiB) address space and load executables and
+ * libraries from about 340 GiB up; the PS4 range is cut to 64-256 GiB, far more than the game maps. */
+#define USER_MAX UINT64_C(0x4000000000)
+#else
 #define USER_MAX UINT64_C(0xfc00000000)
+#endif
 #define LIMIT 4096
 #define INVALID ((int32_t)UINT32_C(0x80020016))
 #define NO_MEMORY ((int32_t)UINT32_C(0x8002000c))
@@ -310,11 +316,14 @@ static int host_map(uintptr_t address, uint64_t size, int prot, int reserved, ui
         ? mmap((void *)address,size,prot,MAP_SHARED|MAP_FIXED,pool_fd,(off_t)phys)
         : mmap((void *)address,size,PROT_NONE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE|MAP_FIXED,-1,0);
     if (mapped==MAP_FAILED) fprintf(stderr,"Runtime: host mapping of %p (+0x%" PRIx64 ") failed: %s\n",(void *)address,size,strerror(errno));
+    else guest_cpu_note_protection((void *)address,size,reserved ? PROT_NONE : prot);
     return mapped==MAP_FAILED ? -1 : 0;
 }
 static int host_unmap(uintptr_t address, uint64_t size) { return host_map(address,size,PROT_NONE,1,0); }
 static int host_protect(uintptr_t address, uint64_t size, int prot) {
-    return in_user_range(address,size) ? mprotect((void *)address,size,prot) : -1;
+    if (!in_user_range(address,size) || mprotect((void *)address,size,prot)) return -1;
+    guest_cpu_note_protection((void *)address,size,prot);
+    return 0;
 }
 static void host_discard(uint64_t phys, uint64_t size) {
     fallocate(pool_fd,FALLOC_FL_PUNCH_HOLE|FALLOC_FL_KEEP_SIZE,(off_t)phys,(off_t)size);
@@ -877,7 +886,7 @@ void *runtime_low_map(size_t size, int prot) {
         p=mmap((void *)low_next,size,prot,MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED_NOREPLACE,-1,0);
         if (p!=MAP_FAILED && p!=(void *)low_next) { munmap(p,size); p=MAP_FAILED; } /* kernel without MAP_FIXED_NOREPLACE */
         low_next+=size+PAGE; /* unmapped gap catches overruns */
-        if (p!=MAP_FAILED) break;
+        if (p!=MAP_FAILED) { guest_cpu_note_protection(p,size,prot); break; }
     }
     write_unlock();
     return p==MAP_FAILED ? NULL : p;
@@ -903,6 +912,7 @@ void *runtime_stack_acquire(size_t size) {
     pthread_mutex_unlock(&stacks_lock);
     void *stack=runtime_low_map(size,PROT_READ|PROT_WRITE);
     if (stack && mprotect(stack,STACK_GUARD,PROT_NONE)) return NULL;
+    if (stack) guest_cpu_note_protection(stack,STACK_GUARD,PROT_NONE);
     return stack;
 }
 /* The caller's thread must have stopped running on the stack. */

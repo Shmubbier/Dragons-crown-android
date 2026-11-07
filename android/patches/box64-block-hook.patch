@@ -1,0 +1,31 @@
+diff --git a/src/dynarec/dynablock.c b/src/dynarec/dynablock.c
+index b1d1f0c..acedf32 100644
+--- a/src/dynarec/dynablock.c
++++ b/src/dynarec/dynablock.c
+@@ -27,6 +27,8 @@
+ #include "khash.h"
+ #include "rbtree.h"
+ 
++extern void (*box64_block_hook)(uintptr_t addr, uintptr_t size);
++
+ // ---- fast hash for block change detection ----
+ static uint32_t normal_fast_hash(void* p, uint32_t len)
+ {
+@@ -466,6 +468,7 @@ dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int n
+                 }
+                 block->done = 1;    // don't validate the block if the size is null, but keep the block
+                 rb_inc(my_context->db_sizes, block->x64_size, block->x64_size+1);
++                if(box64_block_hook) box64_block_hook(addr, block->x64_size);
+             }
+         }
+     }
+@@ -500,6 +503,9 @@ void FlushZombieDynablocks(void)
+     my_context->db_zombie_count = 0;
+ }
+ 
++// Embedding host: told of every newly translated x86 block (address, size), e.g. to map the guest's executed code.
++void (*box64_block_hook)(uintptr_t addr, uintptr_t size) = NULL;
++
+ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
+ {
+     int is_inhotpage = isInHotPage(addr);

@@ -13,7 +13,8 @@ typedef dcp_jmp_buf sigjmp_buf;
 #endif
 /* Recovery point for speculative guest memory reads on this thread (probe.c fault handler). */
 extern __thread sigjmp_buf *runtime_fault_recover;
-#define ABI __attribute__((sysv_abi))
+#include "guest_cpu.h"
+#define ABI DCP_GUEST_ABI
 typedef void (ABI *GuestCallback)(void);
 void runtime_start(uint64_t capabilities);
 uintptr_t runtime_resolve(const char *name, int is_data);
