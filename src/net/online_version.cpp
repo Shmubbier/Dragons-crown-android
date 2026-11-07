@@ -37,6 +37,8 @@ std::string platform_name(bool windows, const std::string& dmi_vendor, const std
 const std::string& host_platform() {
 #ifdef _WIN32
     static const std::string platform = platform_name(true, "", "");
+#elif defined(__ANDROID__)
+    static const std::string platform = "Android";
 #else
     static const std::string platform =
         platform_name(false, FirstLine("/sys/class/dmi/id/sys_vendor"), FirstLine("/sys/class/dmi/id/product_name"));

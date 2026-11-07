@@ -258,7 +258,11 @@ void Worker(std::string client_id, std::string socket_dir, std::filesystem::path
 }
 
 bool ReadConfig(const char* settings_file, std::string& client_id) {
+#ifdef DCP_ANDROID
+    bool enabled = false; // Discord's Android app has no local IPC: on only for the place log and DCP_DISCORD_TRACE
+#else
     bool enabled = true;
+#endif
     std::ifstream file(dcp::PathFromUtf8(settings_file ? settings_file : ""));
     for (std::string line, key, value; std::getline(file, line);) {
         if (!DcpSettings::ParseLine(line, key, value)) continue;

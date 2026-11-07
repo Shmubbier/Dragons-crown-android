@@ -11,6 +11,10 @@
 #include <vector>
 
 #include <netdb.h>
+#ifdef __ANDROID__
+#include <dirent.h>
+#endif
+#include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
 #include <sys/socket.h>
@@ -249,6 +253,21 @@ std::unique_ptr<WebSocket> WebSocket::connect(const std::string& url, int timeou
             const std::string bundle =
                 system_ca_bundle([](const std::string& path) { return access(path.c_str(), R_OK) == 0; });
             if (!bundle.empty()) SSL_CTX_load_verify_locations(context, bundle.c_str(), nullptr);
+#ifdef __ANDROID__
+            // One PEM file per certificate, named by the old subject hash that OpenSSL 3's CApath lookup does not use:
+            // each is loaded. Android 14+ updates them through the Conscrypt APEX.
+            for (const char* folder : {"/apex/com.android.conscrypt/cacerts", "/system/etc/security/cacerts"}) {
+                DIR* dir = opendir(folder);
+                if (!dir) continue;
+                while (const dirent* entry = readdir(dir)) {
+                    if (entry->d_name[0] == '.') continue;
+                    const std::string path = std::string(folder) + "/" + entry->d_name;
+                    SSL_CTX_load_verify_locations(context, path.c_str(), nullptr);
+                }
+                closedir(dir);
+                break;
+            }
+#endif
             SSL_CTX_set_verify(context, SSL_VERIFY_PEER, nullptr);
             ssl = SSL_new(context);
         }

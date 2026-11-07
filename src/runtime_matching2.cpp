@@ -16,6 +16,7 @@
 #include <optional>
 #include <set>
 #include <utility>
+#include <type_traits>
 #include <vector>
 
 #include "net/json.h"
@@ -24,6 +25,9 @@
 #include "dcp_party.h"
 #include "net/relay_frame.h"
 #include "runtime_online.h"
+extern "C" {
+#include "guest_cpu.h"
+}
 
 #define DCP_SYSV __attribute__((sysv_abi))
 
@@ -36,6 +40,18 @@ using RequestCallback = void(DCP_SYSV*)(uint16_t, uint32_t, uint16_t, int32_t, c
 using ContextCallback = void(DCP_SYSV*)(uint16_t, uint16_t, uint8_t, int32_t, void*);
 using RoomCallback = void(DCP_SYSV*)(uint16_t, uint64_t, uint16_t, const void*, void*);
 using SignalingCallback = void(DCP_SYSV*)(uint16_t, uint64_t, uint16_t, uint16_t, int32_t, void*);
+
+// The game's callbacks: a plain call on x86-64, through the emulator on arm64 (guest_cpu.h). Narrow arguments travel in
+// full registers, as SysV passes them.
+template <typename T> uint64_t GameArg(T value) {
+    if constexpr (std::is_pointer_v<T> || std::is_null_pointer_v<T>) return reinterpret_cast<uintptr_t>(value);
+    else return static_cast<uint64_t>(value);
+}
+template <typename Fn, typename... Args> void CallGame(Fn fn, Args... args) {
+    static_assert(sizeof...(Args) <= 6);
+    const uint64_t a[6] = {GameArg(args)...};
+    guest_call6(reinterpret_cast<uintptr_t>(fn), a[0], a[1], a[2], a[3], a[4], a[5]);
+}
 
 constexpr uint16_t kContextId = 1, kServerId = 1;
 enum : uint16_t { kEvWorlds = 0x0002, kEvSetExternal = 0x0004, kEvSetUserInfo = 0x0007, kEvCreateJoin = 0x0101, kEvJoin = 0x0102,
@@ -462,7 +478,7 @@ void Complete(const Pending& p, int32_t error) {
     void* arg = p.arg;
     const uint32_t request = p.request;
     const uint16_t event = p.event;
-    g.calls.push_back([=] { cb(kContextId, request, event, error, nullptr, arg); });
+    g.calls.push_back([=] { CallGame(cb, kContextId, request, event, error, nullptr, arg); });
 }
 
 Pending GamePending(Kind kind, const void* opt, uint16_t event) {
@@ -500,14 +516,14 @@ void PushRoomEvent(uint16_t event, std::shared_ptr<Block> block, const uint8_t* 
     const RoomCallback cb = g.room_cb;
     void* arg = g.room_arg;
     const uint64_t room = g.room;
-    g.calls.push_back([=] { cb(kContextId, room, event, data, arg); (void)block; });
+    g.calls.push_back([=] { CallGame(cb, kContextId, room, event, data, arg); (void)block; });
 }
 
 void PushContextEvent(uint16_t event, int32_t error) {
     if (!g.context_cb) return;
     const ContextCallback cb = g.context_cb;
     void* arg = g.context_arg;
-    g.calls.push_back([=] { cb(kContextId, event, 0, error, arg); });
+    g.calls.push_back([=] { CallGame(cb, kContextId, event, 0, error, arg); });
 }
 
 void RoomGone(uint16_t event) {
@@ -610,7 +626,7 @@ void OnResponse(const net::LobbyMessage& m) {
     void* arg = p.arg;
     const uint32_t request = p.request;
     const uint16_t event = p.event;
-    g.calls.push_back([=] { cb(kContextId, request, event, error, data, arg); (void)block; });
+    g.calls.push_back([=] { CallGame(cb, kContextId, request, event, error, data, arg); (void)block; });
 }
 
 void OnPeer(const Json& b) {
@@ -708,7 +724,7 @@ void OnEvent(const net::LobbyMessage& m) {
             const SignalingCallback cb = g.signal_cb;
             void* arg = g.signal_arg;
             const uint64_t room = g.room;
-            g.calls.push_back([=] { cb(kContextId, room, id, kSignalDead, 0, arg); });
+            g.calls.push_back([=] { CallGame(cb, kContextId, room, id, kSignalDead, 0, arg); });
         }
     }
 }
@@ -857,7 +873,7 @@ void Introduce(uint64_t now) {
         void* arg = g.signal_arg;
         const uint64_t room = g.room;
         const uint16_t id = member;
-        g.calls.push_back([=] { cb(kContextId, room, id, kSignalEstablished, 0, arg); });
+        g.calls.push_back([=] { CallGame(cb, kContextId, room, id, kSignalEstablished, 0, arg); });
     }
 }
 
