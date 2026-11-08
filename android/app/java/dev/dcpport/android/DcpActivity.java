@@ -24,11 +24,26 @@ public class DcpActivity extends SDLActivity {
     /** The settings gear in the touch overlay (android/touch_layout.h DCP_ANDROID_OPEN_SETTINGS). */
     private static final int OPEN_SETTINGS = 0x8001;
 
+    /** Set while the gear's settings screen is open; cheats are reloaded on the way back (android_main.c). */
+    private boolean settingsOpen;
+
+    private static native void nativeReloadCheats();
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (settingsOpen) {
+            settingsOpen = false;
+            nativeReloadCheats();
+        }
+    }
+
     @Override
     protected boolean onUnhandledMessage(int command, Object param) {
         if (command != OPEN_SETTINGS) {
             return super.onUnhandledMessage(command, param);
         }
+        settingsOpen = true;
         startActivity(new Intent(this, LauncherActivity.class).putExtra(LauncherActivity.EXTRA_FROM_GAME, true));
         return true;
     }

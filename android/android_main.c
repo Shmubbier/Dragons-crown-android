@@ -11,10 +11,25 @@
 #include <errno.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <jni.h>
+#include "dcp_launcher.h"
+#include "runtime_cheats.h"
 
 int dcp_loader_main(int argc, char **argv);
 
 static void ensure_dir(const char *path) { mkdir(path, 0770); }
+
+static char settings_file[1100];
+
+/* DcpActivity, back from the settings screen the in-game gear opened: the Cheats page's choices take effect now, as
+ * the PC's in-game Cheats menu does (the hooks are in place whenever online play is off). */
+JNIEXPORT void JNICALL Java_dev_dcpport_android_DcpActivity_nativeReloadCheats(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    if (!*settings_file) return;
+    runtime_cheats_start(dcp_saved_cheats(settings_file), dcp_saved_experience_multiplier(settings_file),
+                         dcp_saved_movement_speed(settings_file));
+    runtime_cheats_log_state(1);
+}
 
 int SDL_main(int argc, char *argv[]) {
     (void)argc; (void)argv;
@@ -40,6 +55,7 @@ int SDL_main(int argc, char *argv[]) {
     snprintf(content, sizeof(content), "%s/image/v1.03/content.bin", root);
     snprintf(app0, sizeof(app0), "%s/app0", root);
     snprintf(user, sizeof(user), "%s/user", root);
+    snprintf(settings_file, sizeof(settings_file), "%s/dcp.ini", user);
     snprintf(logs, sizeof(logs), "%s/logs", root);
     ensure_dir(user);
     ensure_dir(logs);

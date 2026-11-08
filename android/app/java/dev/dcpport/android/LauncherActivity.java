@@ -52,7 +52,7 @@ public class LauncherActivity extends Activity {
     public static final String EXTRA_FROM_GAME = "from_game";
 
     private static final String HOME = "home", GRAPHICS = "graphics", GAMEPLAY = "gameplay", CONTROLS = "controls",
-            ONLINE = "online", ABOUT = "about";
+            CHEATS = "cheats", ONLINE = "online", ABOUT = "about";
     private static final String ON = "1", OFF = "0";
     private static final String SOURCE_URL = "https://github.com/Shmubbier/dragons-crown-pro-pc/tree/android-port";
 
@@ -113,6 +113,7 @@ public class LauncherActivity extends Activity {
             case GRAPHICS: graphics(column); break;
             case GAMEPLAY: gameplay(column); break;
             case CONTROLS: controls(column); break;
+            case CHEATS: cheats(column); break;
             case ONLINE: online(column); break;
             case ABOUT: about(column); break;
             default: home(column); break;
@@ -148,6 +149,8 @@ public class LauncherActivity extends Activity {
         list.addView(item(Icon.GAMEPAD, "Controls", "On-screen controls, controller for each player",
                 () -> show(CONTROLS)));
         list.addView(divider());
+        list.addView(item(Icon.STAR, "Cheats", "Optional gameplay modifiers", () -> show(CHEATS)));
+        list.addView(divider());
         list.addView(item(Icon.GLOBE, "Online", ini.get("online_enabled", OFF).equals(ON)
                 ? "On as " + ini.get("online_name", "Player") : "Off", () -> show(ONLINE)));
         list.addView(divider());
@@ -178,7 +181,8 @@ public class LauncherActivity extends Activity {
         boolean installed = GameFiles.installed(root);
         body.addView(text(installed ? "Ready to play" : "No game installed", 22, onPrimaryContainer, true));
         TextView detail = text(installed
-                ? "Settings apply the next time the game starts."
+                ? fromGame ? "Cheats apply when you resume; other settings the next time the game starts."
+                        : "Settings apply the next time the game starts."
                 : "Copy your prepared game into the app's files folder (docs/ANDROID.md). Importing a package "
                         + "from the phone is coming.", 14, onPrimaryContainer, false);
         detail.setAlpha(0.85f);
@@ -205,6 +209,9 @@ public class LauncherActivity extends Activity {
                 new String[][] {{"16:9", "16:9 Original"}, {"16:10", "16:10"}, {"21:9", "21:9 Ultrawide"},
                         {"32:9", "32:9 Super Ultrawide"}, {"4:3", "4:3"}, {"5:4", "5:4"}}));
         list.addView(divider());
+        list.addView(toggle("True Ultrawide", "Experimental. Expands gameplay beyond 16:9. Some scenes may show "
+                + "unintended background elements. Available with 21:9 and 32:9.", "true_ultrawide", false));
+        list.addView(divider());
         list.addView(toggle("Anti-aliasing", "SMAA smooths jagged edges.", "smaa", false));
         list.addView(divider());
         list.addView(choice("Texture filtering", "Sharper textures at an angle.", "anisotropy", "0",
@@ -226,6 +233,12 @@ public class LauncherActivity extends Activity {
                         {"italian", "Italian"}, {"brazilian_portuguese", "Portuguese (Brazil)"},
                         {"spanish", "Spanish"}}));
         list.addView(divider());
+        list.addView(toggle("Japanese NPC Voices", "Use Japanese voices for NPC dialogue.", "dcp_japanese_npc_voices",
+                false));
+        list.addView(divider());
+        list.addView(toggle("Skip Intro", "Skip the startup logo and go straight to the title screen.", "skip_intro",
+                false));
+        list.addView(divider());
         list.addView(choice("Frame rate", "The game's frame rate limit.", "frame_rate", "60",
                 new String[][] {{"30", "30 fps"}, {"60", "60 fps"}, {"90", "90 fps"}, {"120", "120 fps"}}));
         list.addView(divider());
@@ -236,6 +249,9 @@ public class LauncherActivity extends Activity {
         list.addView(divider());
         list.addView(toggle("Tutorial Skip Offer", "New characters are asked whether to skip the tutorial.",
                 "tutorial_skip_offer", false));
+        list.addView(divider());
+        list.addView(toggle("Unlock Gallery", "Unlocks all Gallery content while enabled without changing save "
+                + "progress.", "unlock_gallery", false));
         c.addView(list);
         note(c);
     }
@@ -267,6 +283,50 @@ public class LauncherActivity extends Activity {
         }
         c.addView(players);
         note(c);
+    }
+
+    /** The PC launcher's Cheats page (src/dcp_cheats.h: keys, labels and choices must match). */
+    private void cheats(LinearLayout c) {
+        header(c, "Cheats");
+        if (ini.get("online_enabled", OFF).equals(ON)) {
+            TextView locked = text("Cheats are disabled while Online Play is enabled.", 14, onSurfaceVariant, false);
+            locked.setPadding(dp(16), dp(8), dp(16), 0);
+            c.addView(locked);
+            return;
+        }
+        String[][] cheats = {
+                {"cheat_infinite_health", "Infinite Health", "Freezes Player 1's current health"},
+                {"cheat_infinite_ally_health", "Infinite Ally Health", "Freezes AI allies' current health"},
+                {"cheat_infinite_mana", "Infinite Mana", "Prevent mana from decreasing when casting spells"},
+                {"cheat_infinite_ally_mana", "Infinite Ally Mana",
+                        "Prevent AI allies' mana from decreasing when casting spells"},
+                {"cheat_infinite_lives", "Infinite Lives", "Prevent remaining lives from decreasing"},
+                {"cheat_infinite_durability", "Infinite Durability", "Prevent equipped gear from losing durability"},
+                {"cheat_infinite_ally_durability", "Infinite Ally Durability",
+                        "Prevent AI allies' equipped gear from losing durability"},
+                {"cheat_infinite_arrows", "Infinite Arrows", "Prevent the Elf's arrows from decreasing"},
+                {"cheat_infinite_skill_points", "Infinite Skill Points",
+                        "Prevent skill points from decreasing when spent"},
+                {"cheat_infinite_skill_uses", "Infinite Skill Uses",
+                        "Prevent equipped skill uses from decreasing when used"},
+                {"cheat_infinite_gold", "Infinite Gold", "Prevent gold from decreasing when spent"},
+        };
+        LinearLayout list = card();
+        for (String[] cheat : cheats) {
+            list.addView(toggle(cheat[1], cheat[2] + ".", cheat[0], false));
+            list.addView(divider());
+        }
+        list.addView(choice("Movement Speed", "Multiplies the normal movement speed.", "cheat_movement_speed", "1",
+                new String[][] {{"1", "Off"}, {"2", "2x"}, {"4", "4x"}}));
+        list.addView(divider());
+        list.addView(choice("Experience Multiplier", "Multiplies the experience each award adds.",
+                "cheat_experience_multiplier", "1",
+                new String[][] {{"1", "Off"}, {"2", "2x"}, {"5", "5x"}, {"10", "10x"}, {"100", "100x"}}));
+        c.addView(list);
+        TextView more = text("Meant for offline and local play. Changes apply when you resume the game.", 13,
+                onSurfaceVariant, false);
+        more.setPadding(dp(16), dp(12), dp(16), 0);
+        c.addView(more);
     }
 
     private void online(LinearLayout c) {
@@ -711,7 +771,7 @@ public class LauncherActivity extends Activity {
 
     // ---- icons: simple line drawings in the Material Symbols spirit, no icon font or resources ----
 
-    private enum Icon { DISPLAY, SWORD, GAMEPAD, GLOBE, INFO, CODE, BACK }
+    private enum Icon { DISPLAY, SWORD, GAMEPAD, STAR, GLOBE, INFO, CODE, BACK }
 
     private final class IconDrawable extends Drawable {
         private final Icon icon;
@@ -760,6 +820,15 @@ public class LauncherActivity extends Activity {
                     canvas.drawLine(cx - 5 * s, cy - 2 * s, cx - 5 * s, cy + 2 * s, paint);
                     canvas.drawPoint(cx + 4 * s, cy - 1 * s, paint);
                     canvas.drawPoint(cx + 7 * s, cy + 2 * s, paint);
+                    break;
+                case STAR:
+                    // Four-point sparkle.
+                    p.moveTo(cx, cy - 10 * s);
+                    p.quadTo(cx + 1.5f * s, cy - 1.5f * s, cx + 10 * s, cy);
+                    p.quadTo(cx + 1.5f * s, cy + 1.5f * s, cx, cy + 10 * s);
+                    p.quadTo(cx - 1.5f * s, cy + 1.5f * s, cx - 10 * s, cy);
+                    p.quadTo(cx - 1.5f * s, cy - 1.5f * s, cx, cy - 10 * s);
+                    canvas.drawPath(p, paint);
                     break;
                 case GLOBE:
                     canvas.drawCircle(cx, cy, 9 * s, paint);
