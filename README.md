@@ -1,347 +1,119 @@
 <div align="center">
 
-# Dragon's Crown Pro - PC Port
+# Dragon's Crown Pro - Android Port
 
-### Dragon's Crown Pro, Vanillaware's PS4 side-scrolling beat 'em up, running natively on Windows, and experimentally on Linux and Steam Deck, with Online Co-op, the TRG launcher and modern graphics and display options
+### Vanillaware's PS4 beat 'em up on arm64 Android phones, built on saulob's [Dragon's Crown Pro PC](https://github.com/saulob/dragons-crown-pro-pc) port, with touch controls, a Material You settings app, cheats and online co-op with PC players
 
-[![Latest release](https://img.shields.io/github/v/release/saulob/dragons-crown-pro-pc?style=for-the-badge&label=release&color=e0bb32&labelColor=07101f&include_prereleases&cacheSeconds=300)](https://github.com/saulob/dragons-crown-pro-pc/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/saulob/dragons-crown-pro-pc/total?style=for-the-badge&color=e0bb32&labelColor=07101f&cacheSeconds=300)](https://github.com/saulob/dragons-crown-pro-pc/releases)
-![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20experimental%20%7C%20Steam%20Deck%20experimental-00acc1?style=for-the-badge&labelColor=07101f)
+[![Android release](https://img.shields.io/github/v/release/Shmubbier/dragons-crown-pro-pc?style=for-the-badge&label=android&color=3ddc84&labelColor=07101f&include_prereleases&cacheSeconds=300)](https://github.com/Shmubbier/dragons-crown-pro-pc/releases)
+![Platform](https://img.shields.io/badge/platform-Android%2013%2B%20arm64%20(experimental)-3ddc84?style=for-the-badge&labelColor=07101f)
+[![Upstream](https://img.shields.io/badge/based%20on-PC%20port%20v1.0.0-e0bb32?style=for-the-badge&labelColor=07101f)](https://github.com/saulob/dragons-crown-pro-pc)
 
-<sub>The original PS4 game code runs on the PC with a replacement for the PS4 system libraries and a Vulkan renderer derived from <a href="https://github.com/shadps4-emu/shadPS4">shadPS4</a>. <b>No game files included</b>: bring your own legally obtained Dragon's Crown Pro PS4 package.</sub>
+<sub>This is a fork of <a href="https://github.com/saulob/dragons-crown-pro-pc">saulob/dragons-crown-pro-pc</a>. The PC port's loader, runtime and Vulkan renderer are built for Android, and the game's own x86-64 code runs in an embedded <a href="https://github.com/ptitSeb/box64">Box64</a> core. <b>No game files included</b>: bring your own legally obtained Dragon's Crown Pro PS4 package.</sub>
 
 </div>
 
-<img width="1941" height="1156" alt="2026-10-14_23-43" src="https://github.com/user-attachments/assets/984433e5-1bd8-498a-949c-68815e73b901" />
+<p align="center">
+  <img src="docs/images/android/gameplay-fight.png" width="49%" alt="Fighting in a stage with the on-screen controls" />
+  <img src="docs/images/android/gameplay-town.png" width="49%" alt="The party in town" />
+</p>
+
+> **Experimental.** Tested on one phone so far, a Galaxy Z Flip5 (Snapdragon 8 Gen 2, Adreno 740, Android 16). For the PC version (Windows, Linux, Steam Deck), use the [upstream repository](https://github.com/saulob/dragons-crown-pro-pc).
 
 ## Features
 
-- **Online Co-op**: play the game's own online multiplayer over the Internet, with Friend Codes, friend requests, an optional public **Lobby** to meet other players, and Join a Friend's room. See [Online Co-op](#online-co-op)
-- **Regions**: the US (`CUSA10454` 1.00 and 1.01), Japanese (`CUSA07001` 1.00, 1.02 and 1.03) Asia / Hong Kong (`CUSA10209` 1.00 and 1.02) and European (`CUSA10487` 1.03) PS4 releases. European support is new and experimental: it comes from one reporter's package and has not been played yet
-- **Native PC port**: the game's own x86-64 code runs directly on the PC. It is not an emulator. Windows is the primary tested platform, and there is an experimental native Linux / Steam Deck AppImage with the same intended feature set. Linux needs no Proton or Wine.
-- **TRG launcher** that installs the game directly from your own `.pkg` file, with no Python or other tools needed, and remembers its window position
-- **Windowed** and **Borderless Fullscreen**, switched with **F11** while playing, with window size and monitor selection
-- **Graphics card selection**: any Vulkan graphics card the renderer can use
-- **VSync** on or off
-- **Render resolution** from 480p to 4K (3840×2160), with the game's native 1080p as the default
-- **Aspect Ratio**: 16:9 Original, 16:10, 21:9 Ultrawide, 32:9 Super Ultrawide, 4:3 and 5:4
-- **Experimental True Ultrawide** (off by default): 21:9 and 32:9 show more of the world at the sides on the supported builds
-- **Frame rate** option: 30, 60 (Original, default), 90, 120, 144, 165, 240 or Unlimited; the game's speed stays at 60 and frames above 60 repeat the last frame
-- **Local PS4 trophies**, offline on this PC, shown on the launcher's Trophies page
-- **SMAA** anti-aliasing and **anisotropic texture filtering** (Game, 2x, 4x, 8x, 16x)
-- **AMD FidelityFX Super Resolution 1** upscaling and **RCAS sharpening** with a strength setting
-- **Menu & Subtitles language**: English, French, German, Italian, Spanish or Brazilian Portuguese (CUSA10454 1.00 USA only); Japanese on the Japanese builds; Traditional Chinese or Korean on the Asia/Hong Kong build
-- **Story Skip Offer** and **Tutorial Skip Offer**: the game's own offers to skip the tutorial and start a new character in the second half of the story
-- **Unlock Gallery**: an option to see every Gallery picture without changing your save
-- Frame rate in the window title, and an in-game **frame counter** (frames per second and frame time, **F2**)
-- Xbox controllers without setup, and keyboard support, with **Xbox button prompts** as an option (PlayStation prompts are the default)
-- Local multiplayer with up to four controllers
-- Portable `user` and `logs` folders next to the program for settings, saves, the shader cache and logs
-- **A PC title menu**: Start Game, Options, Gallery and **Exit Game**, with the game's own menu art and animations. Exit Game is in the game's language and closes the game through the same clean shutdown as closing the window (Alt+F4 still works). The PlayStation Network **Upload Save Data** and **Download Save Data** rows are not shown, because the PlayStation Network save transfer is not available in the PC port.
-- **Brazilian Portuguese**: game text, menus, subtitles, launcher and F1 options on the CUSA10454 1.00 USA build. Character speech bubbles, credits, trophies and some baked labels stay in English
-- **Discord Rich Presence**: your class, level, current place and party in your Discord status, through the Discord desktop app. On by default; `discord_presence = off` in `user\dcp.ini` turns it off. See [docs/DISCORD.md](docs/DISCORD.md)
-- **Bug Report page**: send a report with a filtered log from the launcher and follow its status under **My reports**. See [Reporting problems](#reporting-problems)
-- **Experimental renderers**: OpenGL, and on Windows Direct3D 11, for systems that cannot run Vulkan. They render only part of the game's features; Vulkan stays the default and the supported renderer
-- **Update check**: the launcher looks for a newer release of the port at start and installs it only when you choose to; the game files and the `user` folder are kept
+### What the Android build adds
 
-## Online Co-op
+- **Runs on arm64 Android**: the PC port's code, built for Android, with the game's x86-64 code translated by an embedded Box64 core. The port's hooks into the game's code (cheats, Skip Intro, Gallery, Exit Game and the others) are bridged too, so they work as on PC
+- **60 fps at 720p** in normal combat on a Snapdragon 8 Gen 2, with the Vulkan renderer on [Mesa Turnip](https://docs.mesa3d.org/drivers/freedreno.html)
+- **On-screen touch controls**: a floating left stick, a fixed right stick, the face buttons, the D-pad, the shoulder buttons, Back and Start. Any touch away from the controls goes to the **PS4 touchpad**
+- **Layout editor**: move, resize, hide and fade each on-screen control, then save; the game loads your layout
+- **Material You settings app**: the launcher redesigned for the phone, in your wallpaper's colours. The **gear** on the game screen opens it while you play, and **Resume** takes you back
+- **Controllers**: plug in or pair a gamepad and the touch controls step aside (or turn them off for good). Choose which controller each of players 1 to 4 uses
+- **Cheats**: the PC launcher's full list, set from the app. Cheats changed from the in-game gear apply when you resume
+- **Online co-op with PC players**: the same online service as the PC port. Phones and PCs play together in the same rooms
 
-Dragon's Crown Pro includes Online Co-op. Add your friends with a Friend Code, then meet them in the game and play stages together over the Internet, as on the PS4. No PlayStation Network account is needed.
+### From the PC port, working on Android
 
-- The port's online service (running on Cloudflare) handles your online identity, Friends and friend requests, who is online, and finding and joining rooms.
-- The gameplay itself goes **directly between the players' PCs** (peer-to-peer). Only when two players cannot connect directly does the online service relay that one connection, automatically and only if it offers relay; players who connect directly never use it.
-- Players on different supported game builds and regions can play together, as long as their port versions use the same online protocol. A friend whose version cannot join yours is shown as **Incompatible**.
+- **Graphics**: render resolution (720p is the Android default), aspect ratio, SMAA, texture filtering, FSR 1 upscaling and RCAS sharpening
+- **Experimental True Ultrawide** for 21:9 and 32:9 (not yet tried on a phone)
+- **Gameplay**: Menu & Subtitles language (including Brazilian Portuguese on the USA 1.00 build), frame rate limit, frame counter, Story and Tutorial Skip Offers, **Skip Intro** and **Unlock Gallery**, plus **Japanese NPC Voices** (not yet tried on a phone)
+- **Title menu with Exit Game**
+- **Japanese Menu Buttons** (Circle confirms)
+- **Online**: online name, ping display and the public lobby. Cheats are locked while online play is on, as on PC
+- **Saves**: PC saves copy over to the phone as they are
 
-> **Online play is unlocked by the game, not at the first start.** Dragon's Crown does not offer online multiplayer to a new character right away. It becomes available only after the opening tutorial and story section. If the online options are missing early in a new save, that is the game's normal progression, not a problem with the port.
->
-> To reach Online Co-op faster, turn on **Story Skip Offer** and **Tutorial Skip Offer** on the launcher's **Gameplay** page before creating a new character. The game then lets that character skip the tutorial and start from the second half of the story. Existing characters are not affected.
+### Not on Android yet
 
-### Playing online
-
-1. In the launcher, open the **Online** page and turn **Online play** On.
-2. Choose your **Online name**, the name other players see.
-3. Share **Your friend code** with the friends you want to play with (**Copy** puts it on the clipboard). Get theirs too.
-4. On the **Friends** tab, enter your friend's code and click **Send request**. Your friend sees a **New friend request** card on their **Friends** tab and clicks **Accept**. You now appear in each other's **Friends** list, with whether you are online. To meet new players, turn on **Show me in Lobby** on the **Lobby** tab: it is Off until you choose it, shows your Online name to other players with it on, and lets you send each other friend requests. It is not chat or matchmaking.
-5. Click **Run test** under **Connection test**. It is needed once before **PLAY** while Online play is On: it checks the online service and the UDP port the game uses for multiplayer, and on Windows it gives Windows Firewall the chance to ask for network access before the game starts (choose **Allow access** if it does). PLAY becomes available when the test finishes, whatever the result. **Ready for online play** means other players can reach you. Turning Online play Off resets this requirement.
-6. Press **PLAY**.
-7. Complete the opening tutorial and story section, or skip them with the offers above, until the game's online options are available.
-8. Use the game's normal online flow when setting out from the Stables, as on the PS4. One player hosts.
-9. The other player picks the host's room in **Join Friends Room**. **Join Random Room** finds only hosts who are already inside a stage.
-
-Both players need **Online play** On. With it Off, the game runs offline exactly as before.
-
-**Testing notes**
-- Real-world testing has so far focused on two-player sessions. Dragon's Crown supports up to four players in a room, but four-player online on the PC port has not been fully validated yet.
-- Online play on Linux and Steam Deck is experimental: it uses the same code as Windows, but it has not yet been tested on real Linux or Steam Deck hardware (see [Linux and Steam Deck](#linux-and-steam-deck)).
-
-### Ping and frame counter
-
-- **F2** shows or hides the frame counter (frames per second and frame time).
-- **F3** shows or hides the **Ping** while Online play is on. **Ping display** on the Online page shows it from the start.
-- The Ping is the round trip to the other players over the direct connection, the one gameplay uses. With several players it shows the slowest connection. It is not the time the online service takes to answer. `Ping: --` means no other player is connected yet.
-
-### Cheats and Online play
-
-Cheats are **automatically disabled while Online play is on**. This is intentional, so online sessions are played without them. Turning Online play on switches every saved cheat Off; the Cheats page and the **F10** menu show "Cheats are disabled while Online Play is enabled". Turn Online play off to use cheats again, and turn the cheats you want back on.
-
-### Online troubleshooting
-
-- **The online options are missing in the game**: see the note above. They appear only after the opening tutorial and story section.
-- **"Cannot reach the online service"**: check the Internet connection and that a firewall is not blocking the program.
-- **Friends cannot join, or the connection test says "Limited"**: the game connects players directly. To get through home routers, the port uses STUN, UDP hole punching and, where the router allows it, UPnP port mapping (UDP port 3658 by default). Allowing the program through your firewall, or turning on UPnP in your router, can help. When both players are behind strict NATs (some mobile, campus or provider networks), the connection goes through the online service's relay instead. Relay is automatic; the Connection test shows "Relay: Available" when the online service offers it.
-- **A friend shows Incompatible**: one of you needs another port version. Update both to the latest release.
-- For a problem report, attach the log as described in [Reporting problems](#reporting-problems). The log includes the Connection test details.
-
-Technical details are in [docs/ONLINE.md](docs/ONLINE.md).
-
-### Acknowledgements
-
-Online Co-op was implemented for this project with valuable technical research and lobby design references from [OpenCrown-PC](https://github.com/Nezara/OpenCrown-PC) by Nezara.
-
-OpenCrown's research helped document Dragon's Crown Pro's online interfaces, while its published lobby design also influenced parts of this project's reconnect behavior, room handling and service limits.
-
-This project's implementation was written separately and does not include copied OpenCrown source code, but its published research and design work were important references during development.
-
-### Privacy
-
-Discord Rich Presence talks only to the Discord desktop app on your PC. Discord then shows your class, level, current place and party to whoever can see your status. Add `discord_presence = off` to `user\dcp.ini` to turn it off.
-
-The online service stores anonymous aggregate usage statistics, such as player counts, sessions, the port version, the platform and the country. These statistics do not store player names, Friend Codes, account IDs or IP addresses. Gameplay stays direct between the players (P2P), except for a pair that cannot connect directly, whose traffic the service forwards without storing or reading it; gameplay activity, saves, Ping and FPS are not collected, apart from an anonymous count of which character classes appear in online parties (classes and party size only, no names or identifiers). To find friends and connect you, the service also keeps your account, Online name and friends, and while you are in a room it uses your address and port. See [docs/ONLINE.md](docs/ONLINE.md#privacy-and-usage-statistics).
-
-The launcher's Bug Report page sends a report only when you press Send report: your description, the version, game build and operating system, and one game log you choose, filtered first. Open preview shows exactly what goes out. No personal user data is intentionally included, and automatic filtering cannot promise to catch everything, so check the preview if you want to be sure. Your account and address are used for the report limits and are not stored with the report. My reports on the same page shows what became of the reports sent from this PC; that list exists only on this PC. See [docs/ONLINE.md](docs/ONLINE.md#bug-reports).
-
-## What you need
-
-- Windows 10 (version 1903 or newer) or Windows 11, 64-bit
-- **Or, experimental:** 64-bit Linux on x86-64, including the Steam Deck, on an X11 or Wayland desktop, with glibc 2.31 or newer and a Vulkan 1.3 loader (`libvulkan.so.1`) and graphics driver (see [Linux and Steam Deck](#linux-and-steam-deck)). The game has been run on Ubuntu 24.04 (WSL2), and community testers report it working on Bazzite (KDE Plasma, Wayland, AMD RADV) and on a Steam Deck LCD; other distributions that are new enough may work
-- A processor with **AVX**: Intel Core 2nd generation (Sandy Bridge), AMD FX or newer. The game's PS4 code runs directly on it; LZCNT, MOVBE and BMI1, which some of these lack, are handled in software. On a processor without LZCNT, the USA 1.01 and Asia and Hong Kong 1.02 builds start only when their LZCNT instructions are exactly the ones of the other builds, which the game checks at start
-- A graphics card and driver with **Vulkan 1.3**, `VK_EXT_robustness2`, `VK_KHR_push_descriptor` and `VK_EXT_vertex_attribute_divisor` on either platform (tested on an NVIDIA GeForce RTX 4070 and Intel UHD Graphics 730 on Windows)
-- **Your own legally obtained Dragon's Crown Pro package**: a decrypted PS4 `.pkg` file of this exact game version, and about 6 GB of free space for the installed game:
-
-| | |
-| --- | --- |
-| Game | Dragon's Crown Pro |
-| Platform | PlayStation 4 |
-| US builds | Title ID `CUSA10454`, Content ID `UP2611-CUSA10454_00-DRAGONSCROWNPRO1`: version 1.00 is the base package (`gd`, APP_VER `01.00`, version `01.03`, `eboot.bin` SHA-256 `f9bff150c4c28507096e7e143a07492063ed89bf05ac6cb995a55a0946e3508a`); version 1.01 is an update (`gp`, APP_VER `01.01`, version `01.03`, SHA-256 `434b3bb43f407990f7b861ed57b8007ba459d63af25b1511ce7489be94c908c0`) installed over 1.00 |
-| Japan builds | Title ID `CUSA07001`, Content ID `JP0005-CUSA07001_00-DRAGONSCROWN0001`: version 1.00 is the base package (APP_VER `01.00`, `eboot.bin` SHA-256 `e838e5c551f4ea2d13a13246dcd5474a888c56aa8abf5110f1219c0ceb0ae05f`); version 1.02 is the base plus the 1.02 update (APP_VER `01.02`, SHA-256 `e512685aef4fa1e50eafec8c9699b611992356cbae84e9b0147febceb49843fe`); version 1.03 is the base plus the 1.03 update (APP_VER `01.03`, SHA-256 `dccfd331b02d462f6586330664b230a887928ed1b3909f8625b49623630d1a64`) |
-| Asia and Hong Kong builds | Title ID `CUSA10209`, Content ID `HP0177-CUSA10209_00-DRAGONSCROWN0001`: 1.00 is the base package (`gd`, APP_VER `01.00`, version `01.02`, `eboot.bin` SHA-256 `d37cbc39d84524dd38b818a18bba26ec556bb13e075c493fc927163fec8d039b`); 1.02 is an update (`gp`, APP_VER `01.02`, version `01.00`, SHA-256 `927a3d0f73284b52e87e6f22dc4ecbea6350450182a94c1dc20d76907b086ac5`) installed over 1.00 |
-| Europe build | Title ID `CUSA10487`, Content ID `EP2475-CUSA10487_00-DRAGONSCROWNPRO1`: 1.03 is one complete package (`gd`, APP_VER `01.00`, version `01.03`, `eboot.bin` 22283899 bytes, SHA-256 `25c58f473337bc1da768d86e4cd12fe8a15e4af48e0826ac9a857fd9e3c09845`), with the regional archive `DRACRO_EU.CPK` and no update. This is the one package known so far: a copy dumped or re-wrapped differently has another hash and is refused until it is reported |
-
-The Japanese 1.00 base package is a complete game on its own. The 1.02 and 1.03 updates are installed over that base, as are the USA 1.01 update over its 1.00 base and the Asia and Hong Kong 1.02 update over its 1.00 base, each into its own folder; the 1.03 update replaces every file the 1.02 update changes. The Japanese and Asia and Hong Kong builds are not yet fully tested. Every build has the cheats, True Ultrawide and the Xbox controller prompts; on the builds other than USA 1.00 the cheat, NPC voice and True Ultrawide sites are found in the build's own executable, and the cheats are not yet tested in game there. Every build supports the custom Render resolution and Aspect Ratio options; the USA 1.01 and Asia and Hong Kong 1.02 builds find their render size sites by signature. Both Asia and Hong Kong builds offer Traditional Chinese and Korean text. Traditional Chinese uses the bundled Noto Sans TC font; Korean is not yet tested in game, and that font has no Korean characters. The render resolution and Aspect Ratio patches use tables checked against each build's `eboot.bin`, and are not yet tested in game.
-
-The launcher checks the Title ID, Content ID and versions in the package's `param.sfo` before it unpacks anything, and the `eboot.bin` hash before it installs the result. Any other version is refused, because the port is built for this exact game code. A package encrypted for a PS4 console cannot be unpacked on a PC.
-
-The Linux package is the same game and launcher, so the package requirements are the same.
-
-## Installing
-
-1. Download **DragonsCrownProPC-v1.0.0-windows-x64.zip** from the [latest release](https://github.com/saulob/dragons-crown-pro-pc/releases/latest) and extract it anywhere you can write to.
-2. Run **dragons_crown_pro.exe**. The launcher opens.
-3. On the **Play** page click **Install game...** and select your own Dragon's Crown Pro `.pkg` file.
-4. Wait until **Ready to play** appears. The package is unpacked on your PC into the `game` folder next to the program (about 6 GB). The `.pkg` file is only read, and you can delete it afterwards.
-5. Press **PLAY**.
-
-**No game files are included** in the release, and the port does not download the game.
-
-**Reinstall game...** replaces only the installed game files and keeps your settings, saves, shader cache and logs. If an installation fails or is cancelled, the previous one is left as it was.
-
-### Saves and settings
-
-Everything is kept next to the program, so copying the whole folder to another PC takes your data with it:
-
-| Folder | Contents |
-| --- | --- |
-| `user\dcp.ini` | Launcher and game settings |
-| `user\savedata\` | Your saves |
-| `user\trophy\` | Your trophy progress and the trophy list and icons unpacked from your game |
-| `user\keys.json` | Your Trophy Key, if you configure one |
-| `user\cache\CUSA10454\` | Shader cache, so later starts load faster |
-| `logs\` | One `dragons_crown_pro_NNN.log` per run |
-| `game\` | The installed game (unpacked from your own package) |
-
-These folders are created the first time they are needed and are not part of the download. When updating the port, keep `user` (and `game`, to skip reinstalling).
-
-### Linux and Steam Deck
-
-**Experimental.** This is a native Linux build, not Proton or Wine, and it is intended to provide the same functionality as Windows: the same launcher, installer, display and graphics options and controls; the only Windows-only option is Allow overlay programs. "Experimental" is about testing: the maintainer has no real Linux PC or Steam Deck. Community testers have reported it working on Bazzite (KDE Plasma, Wayland, AMD Radeon RX 9070 XT with RADV, 4K borderless fullscreen) and on a Steam Deck LCD ([issue #5](https://github.com/saulob/dragons-crown-pro-pc/issues/5)). It was also validated automatically under WSL2 with Ubuntu 24.04, in X11 and Wayland environments with a software Vulkan driver: the launcher, installing a package, the game's first screens, saves and the shader cache. Broader testing is still needed on NVIDIA and Intel Vulkan drivers, other distributions and the Steam Deck OLED, gamescope and Gaming Mode, performance, and long sessions. Started without a graphical session (neither `DISPLAY` nor `WAYLAND_DISPLAY` set), the game prints an error and exits instead of crashing. Please report Linux-specific problems with the log (see [Reporting problems](#reporting-problems)).
-
-1. Download **DragonsCrownProPC-v&lt;version&gt;-x86_64.AppImage** from the [latest release](https://github.com/saulob/dragons-crown-pro-pc/releases/latest) and make it executable (right-click > **Properties** > **Permissions** > **Is executable**, or `chmod +x`).
-2. Run it. The launcher opens.
-3. On the **Play** page click **Install game...** and select your own Dragon's Crown Pro `.pkg` file, exactly as on Windows. The launcher uses the desktop's file chooser (`zenity` or `kdialog`) when there is one, and its own file chooser otherwise, which works with the mouse, the keyboard and a controller. Wait until **Ready to play** appears, then press **PLAY**.
-4. `game`, `user` and `logs` are kept next to the AppImage file when that folder is writable (in `$XDG_DATA_HOME/DragonsCrownProPC` otherwise; `DCP_PORTABLE_DIR` chooses another folder). The AppImage itself is never written to.
-
-An AppImage normally mounts itself with FUSE. Where that is not possible it unpacks itself into a temporary folder and runs from there automatically; `APPIMAGE_EXTRACT_AND_RUN=1` forces that mode.
-
-To bring the launcher back after turning **Show this launcher** off, hold **Shift** while starting (in an X11 session) or start the AppImage with `--launcher`. The AppImage's desktop entry also has a **Show launcher** action. On a Steam Deck, which has no keyboard in Gaming Mode, put `--launcher` in the shortcut's **Launch Options** for a run, then remove it.
-
-**Steam Deck:** install the game once from Desktop Mode, then add the AppImage with **Games > Add a Non-Steam Game to My Library** and start it from Gaming Mode. Nothing needs Proton. Requirements, differences from Windows and known limits are in [docs/LINUX.md](docs/LINUX.md).
-
-**Online Co-op on Linux and Steam Deck:** the Linux build has the same Online page, Friends, rooms, direct connections, Ping and cheat lock as Windows, from the same code, and Linux and Windows players can play together. Other players see your platform as Linux or Steam Deck. This is checked by automated tests and builds only: online play on a real Linux PC or Steam Deck has not been tested by the maintainer yet, so reports are very welcome. On a Steam Deck, set up the Online page (Online name, Friend Codes) in Desktop Mode, where a keyboard is at hand.
-
-### Windows SmartScreen
-
-Windows may warn the first time you run the program, because the release is not digitally signed. If you downloaded it from this repository's releases page, choose **More info**, then **Run anyway**.
-
-## The launcher
-
-The launcher opens before the game. Your choices are saved to `user\dcp.ini`. To turn the launcher off, set **Show this launcher** to **Off** on the Play page. Hold **Shift** while starting to bring it back (on Linux, also with `--launcher`, see [Linux and Steam Deck](#linux-and-steam-deck)). The launcher works the same on both platforms (Allow overlay programs is Windows-only); on Linux the folder paths below use `/` instead of a backslash.
-
-### Play
-- **Install game...** from your `.pkg` file, with the Title ID, version and `eboot.bin` checks, and **Reinstall game...**
-- The **Ready to play** status, and the **Show this launcher** setting
-
-### Display
-- **Display mode**: Windowed or Borderless Fullscreen. Press **F11** while playing to switch between them.
-- **Window size** (1280×720 to 3840×2160 in 16:9; the choices follow the Aspect Ratio) and **Monitor**. A window that would not fit the monitor opens smaller, centred and within 80% of its usable area; your saved size is not changed.
-- **Aspect Ratio**: native options 16:9 Original (the default), 16:10, 21:9 Ultrawide, 32:9 Super Ultrawide, 4:3 and 5:4. The game renders a frame of the ratio's shape at the Render resolution's height. Only 16:9 Original is undistorted: the game's 2D scene is still laid out for its original 1280 × 720 canvas, so 21:9 and 32:9 stretch the gameplay horizontally instead of showing more of the world (issue #1) unless True Ultrawide is on, and 16:10, 4:3 and 5:4 squeeze it. In those narrower shapes the port skips the one draw that painted black rectangles in water (issue #32); 16:9 and wider are untouched. The HUD, menus and prerendered videos are not adjusted either. Targets above 3840×2160 pixels (for example 32:9 at 4K) are reduced in height to fit.
-- **True Ultrawide** (experimental, Off by default): with 21:9 or 32:9, the game shows more of the world at the sides instead of stretching it, with the same vertical view and proportions as 16:9. Distant background layers fill the whole width; the playfield and the layers that move with it stop where the stage and the playfield end, showing the background behind them. On the town facility pictures (the guilds, the shop, the inn) the character, titles and text keep their 16:9 size and place and only the room behind them is scaled up evenly to fill the sides, while their top and bottom bars, frame lines and dialogue backing reach the frame edges; the route map keeps its 16:9 composition, centred. The HUD and menus stay in their 16:9 layout; fades, the loading and saving fades and the bottom dialogue and narration bands reach the frame edges, other message bands keep their 16:9 width, and the town map fills the width (at 32:9 as far as its markers stay on screen, black beyond). Available on every supported build.
-- **Presentation**: Letterbox (the default) fits the finished frame into the window with its aspect ratio kept and bars where the shapes differ; Stretch fills the whole window with it. It applies in Windowed and Borderless Fullscreen and does not change the Aspect Ratio or the render resolution.
-- In Windowed and Borderless Fullscreen, mouse movement, clicks and the wheel show the cursor; keyboard or controller input hides it. Mouse-driven menus and dialogs keep it visible.
-- **Graphics card**: the Vulkan graphics card that renders the game, chosen from the cards the renderer can use. A card that is no longer present falls back to the first available card.
-- **VSync** on or off
-- **Upscaling**: AMD FSR 1 enlarges the picture when the window is bigger than the render resolution
-- **Sharpening** (AMD RCAS) and **Sharpening strength**
-
-### Graphics
-- **Renderer**: Vulkan (the default and the supported renderer), or experimental OpenGL, Direct3D 11 (Windows) or Auto. The experimental renderers render only part of the game's features; see [docs/GRAPHICS.md](docs/GRAPHICS.md)
-- **Render resolution**: Native (1080p) 1920×1080, 480p 854×480, 720p 1280×720, 1440p 2560×1440, 1800p 3200×1800 or 4K 3840×2160. 1440p and above need a powerful graphics card.
-- **Anti-aliasing**: Off or SMAA
-- **Texture filtering**: Game, 2x, 4x, 8x or 16x
-
-### Gameplay
-- **Menu & Subtitles**: the language of the game's menus and subtitles: English (default), French, German, Italian, Spanish or Portuguese (Brazil); Portuguese (Brazil) is offered only for CUSA10454 1.00 USA, not for 1.01 or the Japanese, Asia/Hong Kong or European builds, and it also translates the launcher, the F1 options, the F10 overlay and the online screens. The Japanese builds (CUSA07001) show Japanese only, and the Asia/Hong Kong build (CUSA10209) offers Traditional Chinese (default) and Korean instead. The European build (CUSA10487) offers English (default), French, German, Italian and Spanish. Voices are chosen inside the game.
-- **Japanese NPC Voices**: Off by default. On uses the Japanese voice banks already in the USA installation for town and event NPCs. USA and Asia and Hong Kong builds (the Japanese builds already use them); narrator and player-character choices are unchanged
-- **Skip Intro** (Off by default): skips the startup logo and goes straight to the title screen. Applies at the next game start
-- **Frame rate**: 30, 60 (Original, default), 90, 120, 144, 165, 240 or Unlimited frames per second reaching the window. The game makes 60 new frames a second whatever the setting, so game speed does not change and the frames above 60 show the last frame again (no interpolation)
-- **Frame rate in title**: shows the frame rate in the window title, for example `Dragon's Crown Pro | FPS: 60.00`
-- **Render resolution in title**: shows the game's render resolution in the window title, for example `Dragon's Crown Pro | 1920x1080`
-- **Frame counter**: shows the frame rate and frame time in a corner of the game
-- **Arachnophobia Safe Mode**: redraws the Giant Spider as two soft cream bodies with two orange eyes, without legs or fangs; gameplay does not change
-- **Story Skip Offer** (Off by default): when you create a new character, the game offers to start it from the second half of the story, which it normally offers only after a class on the save has finished the game. Recommended if you mainly want Online Co-op
-- **Tutorial Skip Offer** (Off by default): the first character of a save is also asked whether to begin the tutorial, instead of starting it automatically. Existing characters are not affected by either offer
-- **Unlock Gallery** (Off by default): shows all 57 pictures of the title menu's Gallery while it is on, without changing your save. Pictures you have not really found are only shown; turn it Off and the Gallery goes back to exactly what your save holds. Trophies and progress are not affected. Applies at the next game start
-- **Allow overlay programs** (Windows, Off by default): starts the game as a separate process from the launcher, which recording, chat, store and performance overlays can attach to cleanly. Turn it on if the game closes right after Play while such a program is running
-
-The game runs at its own 60 frames per second unless the Frame rate setting asks for more; its logic stays at 60 either way.
-
-### Online
-- **Online play** (Off by default), then three tabs: **Settings** (**Online name**, **Your friend code**, **Connection test**, **Ping display**), **Friends** with friend requests, and **Lobby** (**Show me in Lobby**, Off by default). See [Online Co-op](#online-co-op) for how to play and [docs/ONLINE.md](docs/ONLINE.md) for the details.
-
-### Cheats
-- **Infinite Health**, **Infinite Ally Health**, **Infinite Mana**, **Infinite Ally Mana**, **Infinite Lives**, **Infinite Durability**, **Infinite Ally Durability**, **Infinite Arrows**, **Infinite Skill Points**, **Infinite Skill Uses** and **Infinite Gold** (Player 1, except the ally cheats; gold is shared by the save), all Off by default. **Movement Speed** (Off, 2x or 4x) and **Experience Multiplier** (Off, 2x, 5x, 10x or 100x) are settings of their own. Press **F10** while playing to open the Cheats menu; it also has the one-shot **Fill Health**, **Fill Ally Health**, **Set Low Health**, **Set Ally Low Health**, **Add 100 Skill Points**, **Add 1,000 Gold** and **Level Up (+1 Level)**. What you change there applies only to the current session, and the next start uses the values saved here. They are meant for offline and local play: while Online Play is on (the setting or `DCP_ONLINE`), every cheat is Off and F10 only shows "Cheats are disabled while Online Play is enabled" See [docs/CHEATS.md](docs/CHEATS.md).
-
-### Controls
-- Xbox controllers work without setup
-- **Controller prompts**: PlayStation (original) or Xbox. Xbox changes the button pictures the game shows (A/B/X/Y, LB/RB, LT/RT, MENU and VIEW) in the port's own copy of the game; the touchpad prompt becomes VIEW as well, because View performs that action. PlayStation puts the originals back. Your `.pkg` file is never changed.
-- The **keyboard** is always on, together with the controller. The keys below are the defaults; change any of them on the launcher's **Controls** page (click a key, press the new one, Esc cancels) and use **Reset to defaults** to restore them:
-
-| Action | Keys |
-| --- | --- |
-| Left stick | W A S D |
-| Right stick | Arrow keys |
-| Cross (A) / Circle (B) | Space / Left Shift |
-| Square (X) / Triangle (Y) | E / Q |
-| L1 / R1 | 1 / 3 |
-| L2 / R2 | R / F |
-| L3 / R3 | Z / C |
-| D-pad up / down / left / right | I / K / J / L |
-| Options (Start) | Enter |
-| Touchpad left / right (Back) | Tab / Backspace |
-
-- **Japanese Menu Buttons** (Controls page, Off by default): Off, Cross (A) confirms and Circle (B) cancels in the menus on every game build, including the Japanese and Asia/Hong Kong builds; On swaps them, as in the Japanese release. Combat controls do not change. Applies at the next game start
-- **F1** (or **L3 + R3** on a controller) opens the Options menu: most of the launcher's Display, Graphics and Gameplay settings, a Controls page that lists the hotkeys, and the Cheats page of the F10 menu. Changes are saved to the same `dcp.ini` as the launcher. The Renderer, Render resolution, Aspect Ratio, True Ultrawide, Texture filtering, Frame rate and a few Gameplay options are saved and apply the next time the game starts (close it and start it again); the rest apply at once. See [docs/LAUNCHER.md](docs/LAUNCHER.md). **F11** switches Windowed and Borderless Fullscreen. **F10** opens the Cheats menu (both can be changed under **Port hotkeys** on the Controls page). **F2** shows or hides the frame counter. **F3** shows or hides the Ping while Online Play is on (see [docs/ONLINE.md](docs/ONLINE.md)). An experimental AMD water workaround for black regions under characters standing in water is On on AMD graphics cards and Off elsewhere. Window size, monitor, graphics card, language and the online settings are set in the launcher.
-- **Local multiplayer**: up to four players, one controller each (Player 1 is the first controller found, and the keyboard is always Player 1's). A controller connected later takes the lowest free player slot; a player stays logged in when their controller is unplugged.
-
-### Trophies
-- The game's PlayStation 4 trophies are tracked locally and offline, on this PC only: no PSN connection, no account, no sync. The list and icons come from your own game package, and the **Trophies** launcher page shows your progress, the trophies and their grades.
-- The trophy list is encrypted in the package. The port does not include, generate or download the Trophy Key it needs: enter your own on the Trophies page, or import it from a shadPS4 `keys.json` or `config.toml`. It is stored only in `user\keys.json`, and the launcher never shows it again. Without it the game still records your unlocks, and the page shows them once a key works.
-- There is no in-game "Trophy unlocked" notification yet. See [docs/TROPHIES.md](docs/TROPHIES.md).
-
-### Bug Report
-- Describe the problem, choose a game log and press **Send report**. **Open preview** shows exactly what goes out, after the privacy filter. **My reports** shows the status of what you sent. See [Reporting problems](#reporting-problems)
-
-### About
-- The port version, game version, renderer and library versions
-- Open the game folder, the saves and settings folder, or the logs folder
-- **Show settings file**, and **Reset all settings**
+- Importing a game package on the phone: prepare the game with the PC launcher, then copy it over (see [Installing](#installing))
+- Sending and accepting friend requests (random rooms and join codes work)
+- Trophies, Xbox button prompts and Arachnophobia Safe Mode
+- The in-game Cheats menu (F10 on PC); use the settings app's Cheats page
+- Discord Rich Presence: Discord's Android app has no local connection for it
 
 ## Screenshots
 
-<img width="1962" height="1170" alt="2026-10-14_23-45" src="https://github.com/user-attachments/assets/91c30616-e700-478f-a56b-c286344e6502" />
-<img width="1935" height="1161" alt="2026-10-14_23-44_1" src="https://github.com/user-attachments/assets/3f9fbc08-a505-4caa-8346-d5560b82d94d" />
+<p align="center">
+  <img src="docs/images/android/gameplay-title.png" width="49%" alt="Title menu with Exit Game" />
+  <img src="docs/images/android/gameplay-gallery.png" width="49%" alt="The Gallery with every picture unlocked" />
+</p>
 
+<p align="center">
+  <img src="docs/images/android/app-home.png" width="32%" alt="Settings app home" />
+  <img src="docs/images/android/app-settings.png" width="32%" alt="Settings pages" />
+  <img src="docs/images/android/app-controls.png" width="32%" alt="Controls page" />
+</p>
+
+<p align="center">
+  <img src="docs/images/android/app-cheats.png" width="49%" alt="Cheats page" />
+  <img src="docs/images/android/app-layout-editor.png" width="49%" alt="On-screen controls layout editor" />
+</p>
+
+## What you need
+
+- An **arm64 Android phone** running Android 13 or newer. An Adreno GPU with Mesa Turnip is the tested setup: Qualcomm's own Vulkan driver hangs the GPU on some of the game's draws
+- **A PC with the [PC port](https://github.com/saulob/dragons-crown-pro-pc)**, to install the game once from your package
+- **Your own legally obtained Dragon's Crown Pro package**: the supported builds and their checks are listed in the [upstream README](https://github.com/saulob/dragons-crown-pro-pc#what-you-need). The Android build has been played on the USA 1.00 build (`CUSA10454`)
+- About 6 GB of free space on the phone
+
+## Installing
+
+1. Install the game on a PC with the PC port's launcher, from your own `.pkg` file.
+2. Download the APK from this fork's [releases](https://github.com/Shmubbier/dragons-crown-pro-pc/releases) and install it on the phone.
+3. Copy the PC install's prepared game and boot image to the app's files folder (`Android/data/dev.dcpport.android/files`). Copy `game/prepared/v1.03` to `app0/` and `build/image/v1.03` to `image/v1.03/`. Copy your PC `user/` folder too if you want your saves and settings.
+4. Set up the Turnip driver (see [docs/ANDROID.md](docs/ANDROID.md#graphics-driver-mesa-turnip)).
+5. Open the app and press **Play**.
+
+The release `android-v1.0.0-alpha1` has the game, touch controls and online play. The settings app, the layout editor, the controller choice per player, cheats and the other hook-based options are in the `android-port` branch and will be in the next release.
+
+Folders, `dcp.ini` settings and the driver setup are described in [docs/ANDROID.md](docs/ANDROID.md).
+
+## Building
+
+The Android build runs on Windows (Git Bash) or Linux with the Android SDK, NDK r30 and CMake, without Gradle. `android/CMakeLists.txt` builds `libmain.so` and `android/build-apk.sh` packages the APK. The dependencies (SDL3, Box64 with the patches in `android/patches`, OpenSSL, FreeType and the others) and the exact commands are in [docs/ANDROID.md](docs/ANDROID.md#building).
+
+The PC build is unchanged from upstream; see the [upstream README](https://github.com/saulob/dragons-crown-pro-pc#building-it-yourself).
 
 ## Reporting problems
 
-The easiest way is the launcher's **Bug Report** page: describe the problem, choose the log of that session and press **Send report**. It filters the log first, and **Open preview** shows exactly what goes out. You get a report ID, and **My reports** shows its status.
-
-You can also open an [issue](https://github.com/saulob/dragons-crown-pro-pc/issues). Attach the newest `dragons_crown_pro_*.log` file from the `logs` folder next to the program, and say what you were doing when the problem happened.
-
-If the launcher says your Dragon's Crown Pro version is not supported yet, it has already written technical diagnostic information about that version to the latest log. Attach that log when you open the issue.
-
-For a Linux or Steam Deck problem, please also give your Linux distribution, your GPU and its driver (for example Mesa and RADV, or NVIDIA), and on a Steam Deck whether you were in Desktop Mode or Gaming Mode.
-
-## Building it yourself
-
-```powershell
-git clone https://github.com/saulob/dragons-crown-pro-pc.git
-```
-
-1. Install [MSYS2](https://www.msys2.org) with the CLANG64 toolchain. `.\tools\setup.ps1` checks it and prints the `pacman` command for anything missing.
-2. `.\tools\build.ps1` fetches the pinned dependencies (TRG Launcher, Dear ImGui and a few small libraries) and builds `build\cmake\clang64\bin\dragons_crown_pro.exe`.
-3. Start that executable yourself: the build only builds, and puts every DLL the game loads beside it. Install the game from the launcher's Play page, as in a release; the development build keeps it in `game\` and the boot image in `build\image\` of the repository.
-4. `.\tools\package.ps1` makes the release folder, ZIP and `.zip.sha256` file in `dist\` from the same build: the program without debug information (the symbols stay in `dist\`), the DLLs it needs and the licences. It is local only and never uploads, tags or publishes anything. The release version is the project `VERSION` in `CMakeLists.txt`.
-5. `.\tools\package-release.ps1` prepares the whole release in `dist\`: that Windows ZIP, and the Linux AppImage built in WSL2 (`tools/package-release-linux.sh`, which runs `tools/package-linux.sh`), each with its `.sha256` file. It needs the Ubuntu 20.04 WSL2 distribution `DcpFocalBuild`, prepared once as [docs/LINUX.md](docs/LINUX.md#building) describes, installs nothing, fails if either platform fails, and never uploads anything.
-
-`.\tools\test.ps1` runs the focused tests. It is also the supported-build parity gate: `dcp-build-parity-tests` holds one contract row per supported build (capabilities, mappings, base and update parity with its listed exceptions), reads any local `build\image` and `game\prepared` folders without changing them, and the script ends with a per-build `PASS real` / `PASS synthetic` summary and a non-zero exit code when anything fails. Adding a supported build means adding its contract row. Python is not needed to build, test or play. Only the optional development scripts in `scripts\` use it, such as the Python cross-checks of the package extractor and the boot image builder (`.\tools\setup.ps1 -InstallPython`).
-
-### Linux
-
-```sh
-git clone https://github.com/saulob/dragons-crown-pro-pc.git
-cd dragons-crown-pro-pc
-sudo bash packaging/linux/ci-deps.sh   # Ubuntu 20.04: toolchain and pinned libraries (docs/LINUX.md)
-bash tools/build.sh               # fetches the pinned dependencies, builds build/cmake/linux/bin/dragons_crown_pro
-bash tools/build.sh --test        # also builds and runs the focused tests
-bash tools/package-linux.sh       # dist/DragonsCrownProPC-v<version>-x86_64.AppImage and its .sha256 (--out-dir DIR: elsewhere)
-```
-
-`tools/build.sh --run` starts the loader that was built. Python is not needed. The AppImage is built on Ubuntu 20.04, whose glibc (2.31) is the oldest one it runs on, and `tools/package-linux.sh` checks every ELF file in it against that; `.github/workflows/linux-appimage.yml` does the same in GitHub Actions (started by hand, publishes nothing).
-
-The technical notes are in [docs](docs): [launcher and settings](docs/LAUNCHER.md), [online play](docs/ONLINE.md), [Linux port](docs/LINUX.md), [graphics](docs/GRAPHICS.md), [OpenGL renderer: origin and independence](docs/opengl-renderer.md), [Direct3D 11 renderer](docs/d3d11-renderer.md), [first boot](docs/FIRST_BOOT.md), [bootstrap](docs/BOOTSTRAP.md) and [references](docs/REFERENCES.md).
-
-## Sponsoring
-
-Dragon's Crown Pro PC is maintained and developed in my free time. If you enjoy the project or find it useful, consider supporting its continued development.
-
-<p align="center">
-<a href="https://github.com/sponsors/saulob" target="_blank"><img src="https://img.shields.io/badge/GitHub%20Sponsors-Sponsor-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="GitHub Sponsors"></a>
-</p>
+Open an [issue on this fork](https://github.com/Shmubbier/dragons-crown-pro-pc/issues) for Android problems. Attach `logs/console.txt` from the app's files folder, and give your phone model, GPU and driver (Turnip version or the phone's own). Problems that also happen on PC belong [upstream](https://github.com/saulob/dragons-crown-pro-pc/issues).
 
 ## Credits
 
-- Dragon's Crown Pro by Vanillaware, published by Atlus (2018). This is an unofficial fan-made PC port. It is not affiliated with or endorsed by Vanillaware, Atlus, SEGA, Sony Interactive Entertainment or any other rights holder, and it contains none of their files.
-- [shadPS4](https://github.com/shadps4-emu/shadPS4) for the Vulkan renderer, shader recompiler and GPU command processing the video core is built on, and for the PS4 package extractor the installer is adapted from, as it was before upstream commit `be22674f` removed it (GPL-2.0-or-later)
-- [gow3_pc](https://github.com/FelipePrado0/gow3_pc) and its lineage, uncharted-ndc-native, MediEvil PC and the HayatoG ports, for the loader, runtime and video core this port grew from (see [docs/REFERENCES.md](docs/REFERENCES.md))
-- [OpenCrown-PC](https://github.com/Nezara/OpenCrown-PC) by Nezara for published Dragon's Crown Pro reverse-engineering research used as a technical reference, including parts of the online/lobby research and the original CUSA10454 1.00 story/tutorial skip patch-site research. Dragon's Crown Pro PC's implementations were written separately for this project
-- The experimental OpenGL renderer is an independent backend on the shadPS4-derived video core; the projects it was informed by, and what was and was not taken from each, are listed in [docs/opengl-renderer.md](docs/opengl-renderer.md)
-- [ANGLE](https://chromium.googlesource.com/angle/angle) runs the experimental Direct3D 11 renderer on Windows (BSD-3-Clause); see [docs/d3d11-renderer.md](docs/d3d11-renderer.md)
-- Brazilian Portuguese translation, images and manual based on the work of [Marcelo - Uma Ficha](https://www.youtube.com/@umaficha1), used with permission
-- Discord Rich Presence started from the contribution in [PR #55](https://github.com/saulob/dragons-crown-pro-pc/pull/55) by [Shmubbier](https://github.com/Shmubbier), with commits by na-om
-- [bloodborne_pc_windows](https://github.com/Phroster/bloodborne_pc_windows) for the anisotropic filtering approach
-- [SMAA](https://github.com/iryoku/smaa) by Jorge Jimenez et al., and AMD FidelityFX Super Resolution 1
-- [TRG Launcher](https://github.com/TekRantGaming/trg-launcher), the launcher interface, pinned at v1.1.0, licensed under the MIT License
-- The launcher and installer follow the approach of the [Hard Corps: Uprising](https://github.com/saulob/hard-corps-uprising-recompiled) and [Geometry Wars: Retro Evolved 2](https://github.com/saulob/geometry-wars-retro-evolved-2-recompiled) PC ports
-- The licenses of the libraries the release includes are in the `licenses` folder of the ZIP
+- **[saulob](https://github.com/saulob)** for [Dragon's Crown Pro PC](https://github.com/saulob/dragons-crown-pro-pc), which this fork is built on: the loader, runtime, renderer, launcher, online co-op, cheats and every hook. If you enjoy the port, consider [sponsoring saulob](https://github.com/sponsors/saulob)
+- Dragon's Crown Pro by Vanillaware, published by Atlus (2018). This is an unofficial fan-made port. It is not affiliated with or endorsed by Vanillaware, Atlus, SEGA, Sony Interactive Entertainment or any other rights holder, and it contains none of their files
+- [Box64](https://github.com/ptitSeb/box64) by ptitSeb and contributors (MIT), which runs the game's x86-64 code on arm64
+- [Mesa Turnip](https://docs.mesa3d.org/drivers/freedreno.html) and [libadrenotools](https://github.com/bylaws/libadrenotools) (BSD-2-Clause) for the Adreno Vulkan driver and loading it
+- [SDL3](https://github.com/libsdl-org/SDL) (zlib), FreeType, libpng, fmt and OpenSSL 3 (Apache-2.0)
+- Everything the PC port credits: [shadPS4](https://github.com/shadps4-emu/shadPS4), [gow3_pc](https://github.com/FelipePrado0/gow3_pc) and its lineage, [OpenCrown-PC](https://github.com/Nezara/OpenCrown-PC), [TRG Launcher](https://github.com/TekRantGaming/trg-launcher), SMAA, AMD FidelityFX Super Resolution 1 and the others in the [upstream credits](https://github.com/saulob/dragons-crown-pro-pc#credits)
 
 ## AI disclosure
 
-AI tools were used to assist with code analysis, development, debugging and documentation. Changes were directed, tested and reviewed by the maintainer.
+From the upstream PC port, by saulob: "AI tools were used to assist with code analysis, development, debugging and documentation. Changes were directed, tested and reviewed by the maintainer."
 
 ## License
 
 Original code in this project is licensed under the GNU General Public License v2.0 or later (GPL-2.0-or-later). See [LICENSE](LICENSE).
 
-Third-party components retain their respective licenses and notices. See [licenses/THIRD-PARTY-LICENSES.txt](packaging/licenses/THIRD-PARTY-LICENSES.txt).
+Third-party components retain their respective licenses and notices. See [licenses/THIRD-PARTY-LICENSES.txt](packaging/licenses/THIRD-PARTY-LICENSES.txt). An APK also contains the libraries listed in [docs/ANDROID.md](docs/ANDROID.md#licences).
 
 No game files are included. Dragon's Crown Pro and its assets are not covered by this project's license.

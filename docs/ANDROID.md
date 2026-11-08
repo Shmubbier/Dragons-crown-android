@@ -19,13 +19,16 @@ Tested on one phone, a Galaxy Z Flip5 (Snapdragon 8 Gen 2, Adreno 740, Android 1
 - **Graphics driver:** Qualcomm's own Vulkan driver hangs the GPU on some of the game's draws. Mesa Turnip (see below)
   runs with no faults.
 
+Added after the first release (`android-v1.0.0-alpha1`): the settings app (Material You; the in-game gear opens it), the
+on-screen controls layout editor, a right stick and the PS4 touchpad, a controller choice for each player, cheats
+(changes from the gear apply on Resume), Skip Intro, Unlock Gallery and the title menu's Exit Game. Japanese NPC voices,
+True Ultrawide and the online "System type" card are installed by the same hooks but not yet tried on the phone.
+
 Not ported yet:
 
-- the launcher (the app starts the game with `dcp.ini` as it is)
-- cheats, and the other features that patch the game's code natively: Japanese NPC voices, True Ultrawide, the online
-  "System type" card
+- importing a game package on the phone
 - sending and accepting friend requests (random rooms and join codes work)
-- trophies
+- trophies, Xbox button prompts and Arachnophobia Safe Mode (the PC launcher patches the game files for the last two)
 - Discord Rich Presence: Discord's Android app has no local connection for it. `discord_presence=1` still logs which
   area the game is in.
 
@@ -60,7 +63,7 @@ Useful `dcp.ini` settings on Android:
 
 - `render_resolution`: `720p` by default; `native`, `480p` and the PC values also work.
 - `text_language=pt-BR`: Brazilian Portuguese text on the USA 1.00 build.
-- `online_enabled=1`, `online_name=<name>`, `show_ping=1`: online play. The app has no launcher, so there is no
+- `online_enabled=1`, `online_name=<name>`, `show_ping=1`: online play. The settings app sets these; there is no
   Connection test before playing.
 
 `DCP_ADPF=0` in `env.txt` turns off the Android performance hints (`gpu/shim/dcp_adpf.cpp`).
