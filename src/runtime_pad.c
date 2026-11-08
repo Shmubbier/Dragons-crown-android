@@ -7,8 +7,10 @@
 #include "runtime.h"
 #include "dcpgpu.h"
 #include "dcp_keys.h"
+#include "dcp_launcher.h"
 #include "dcp_sdl_compat.h"
 #include "exit_game_hook.h"
+#include "pad_slots.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -98,7 +100,29 @@ static int free_slot(void) {
     for (int i=0;i<MAX_PADS;++i) if (!slots[i].gamepad) return i;
     return -1;
 }
-/* Gives new gamepads, in SDL's order, the lowest slots without one; called under lock. A disconnected
+/* playerN_controller (launcher/settings.h): empty for any gamepad, a controller model as "vendor:product" in hex, or
+ * "none" (player 1: keyboard or touch only). ponytail: a model, not one device: two identical controllers take the
+ * players naming it in connection order. A serial number, where SDL has one, if that matters. */
+static char wanted[MAX_PADS][64];
+static int touch_controls=1;
+static char keys_file[4200];
+static void load_player_controllers(void) {
+    static bool loaded;
+    /* The overlay asks for buttons from the window thread before the loader names the settings file. */
+    if (loaded || !*keys_file) return;
+    loaded=true;
+    for (int i=0;i<MAX_PADS;++i) {
+        dcp_player_controller(keys_file,i+1,wanted[i],sizeof(wanted[i]));
+        if (*wanted[i]) printf("Runtime: player %d controller: %s\n",i+1,wanted[i]);
+    }
+    touch_controls=dcp_touch_controls(keys_file);
+}
+static int slot_for(const char *model) {
+    bool taken[MAX_PADS];
+    for (int i=0;i<MAX_PADS;++i) taken[i]=slots[i].gamepad!=NULL;
+    return pad_slot_for(wanted,taken,MAX_PADS,model);
+}
+/* Gives new gamepads, in SDL's order, the players set for them (slot_for); called under lock. A disconnected
  * gamepad frees its slot, but the player stays logged in, as on the PS4. */
 static void refresh_gamepads(void) {
     if (!sdl_ready) {
@@ -106,6 +130,7 @@ static void refresh_gamepads(void) {
         sdl_ready = SDL_WasInit(SDL_INIT_GAMEPAD) ? 1 : SDL_InitSubSystem(SDL_INIT_GAMEPAD) ? 1 : -1;
     }
     if (sdl_ready<0) return;
+    load_player_controllers();
     for (int i=0;i<MAX_PADS;++i) {
         if (!slots[i].gamepad || SDL_GamepadConnected(slots[i].gamepad)) continue;
         printf("Runtime: gamepad %d disconnected\n",i+1);
@@ -120,9 +145,12 @@ static void refresh_gamepads(void) {
     SDL_JoystickID *ids=SDL_GetGamepads(&count);
     for (int j=0;ids && j<count && free_slot()>=0;++j) {
         if (gamepad_assigned(ids[j])) continue;
+        char model[16];
+        snprintf(model,sizeof(model),"%04x:%04x",SDL_GetGamepadVendorForID(ids[j]),SDL_GetGamepadProductForID(ids[j]));
+        const int slot=slot_for(model);
+        if (slot<0) continue;
         SDL_Gamepad *g=SDL_OpenGamepad(ids[j]);
         if (!g) continue;
-        const int slot=free_slot();
         slots[slot].gamepad=g;
         ++slots[slot].connected_count;
         const unsigned vendor=SDL_GetGamepadVendor(g), product=SDL_GetGamepadProduct(g);
@@ -157,7 +185,6 @@ static ButtonMap pad_map={{
 },15};
 static ButtonMap key_map;
 static DcpKeyMap keys;
-static char keys_file[4200];
 void runtime_pad_set_settings(const char *settings_file) { snprintf(keys_file,sizeof(keys_file),"%s",settings_file ? settings_file : ""); }
 
 static const struct { DcpKeyAction action; uint32_t ps; } key_buttons[]={

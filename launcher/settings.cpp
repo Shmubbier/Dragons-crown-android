@@ -53,6 +53,11 @@ constexpr ManagedSetting kBaseSettings[] = {
     {kAllowOverlayProgramsKey, "0"},
     {kSkipIntroKey, "0"},
     {kJapaneseMenuButtonsKey, "0"},
+    {kPlayer1ControllerKey, ""},
+    {kPlayer2ControllerKey, ""},
+    {kPlayer3ControllerKey, ""},
+    {kPlayer4ControllerKey, ""},
+    {kTouchControlsKey, "auto"},
     {kStorySkipOfferKey, "0"},
     {kTutorialSkipOfferKey, "0"},
     {kUnlockGalleryKey, "0"},
@@ -142,6 +147,18 @@ bool IsValidSetting(std::string_view key, std::string_view value) {
     }
     if (key == kControllerPromptsKey) {
         return one_of({"playstation", "xbox"});
+    }
+    if (key == kTouchControlsKey) {
+        return one_of({"auto", "off"});
+    }
+    if (key == kPlayer1ControllerKey || key == kPlayer2ControllerKey || key == kPlayer3ControllerKey ||
+        key == kPlayer4ControllerKey) {
+        const auto hex = [&](size_t from) {
+            return std::all_of(value.begin() + from, value.begin() + from + 4,
+                               [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); });
+        };
+        return (key == kPlayer1ControllerKey && value == kNoController) ||
+               (value.size() == 9 && value[4] == ':' && hex(0) && hex(5));
     }
     if (key == cheats::kExperienceMultiplierKey) {
         return std::any_of(std::begin(cheats::kExperienceChoices), std::end(cheats::kExperienceChoices),
@@ -367,6 +384,20 @@ extern "C" int dcp_skip_intro(const char* settings_file) {
     using namespace dcp;
     const LauncherSettings settings(PathFromUtf8(settings_file ? settings_file : ""));
     return settings.GetBool(kSkipIntroKey, false) ? 1 : 0;
+}
+
+extern "C" size_t dcp_player_controller(const char* settings_file, int player, char* out, size_t size) {
+    using namespace dcp;
+    const LauncherSettings settings(PathFromUtf8(settings_file ? settings_file : ""));
+    const std::string value = settings.Get(PlayerControllerKey(player));
+    if (size) std::snprintf(out, size, "%s", value.c_str());
+    return value.size();
+}
+
+extern "C" int dcp_touch_controls(const char* settings_file) {
+    using namespace dcp;
+    const LauncherSettings settings(PathFromUtf8(settings_file ? settings_file : ""));
+    return settings.Get(kTouchControlsKey) == "off" ? 0 : 1;
 }
 
 extern "C" int dcp_japanese_menu_buttons(const char* settings_file) {

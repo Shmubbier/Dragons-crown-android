@@ -63,6 +63,17 @@ inline constexpr char kJapaneseNpcVoicesKey[] = "dcp_japanese_npc_voices";
 inline constexpr char kSkipIntroKey[] = "skip_intro";
 // Circle confirms and Cross cancels in the menus (src/menu_buttons.h).
 inline constexpr char kJapaneseMenuButtonsKey[] = "japanese_menu_buttons";
+// Which controller plays player 1-4 (src/runtime_pad.c): empty for the next one connected, a controller model as
+// "vendor:product" in hex (054c:09cc), or for player 1 only kNoController: no gamepad, the keyboard (PC) or the on-screen
+// controls (Android) play.
+inline constexpr char kPlayer1ControllerKey[] = "player1_controller";
+inline constexpr char kPlayer2ControllerKey[] = "player2_controller";
+inline constexpr char kPlayer3ControllerKey[] = "player3_controller";
+inline constexpr char kPlayer4ControllerKey[] = "player4_controller";
+inline std::string PlayerControllerKey(int player) { return "player" + std::to_string(player) + "_controller"; }
+inline constexpr char kNoController[] = "none";
+// The on-screen controls on Android: "auto" (default) while no gamepad plays player 1, or "off".
+inline constexpr char kTouchControlsKey[] = "touch_controls";
 // The game's own story skip and tutorial questions for every new character (src/skip_offers.h).
 inline constexpr char kStorySkipOfferKey[] = "story_skip_offer";
 inline constexpr char kTutorialSkipOfferKey[] = "tutorial_skip_offer";

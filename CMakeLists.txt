@@ -423,6 +423,11 @@ target_include_directories(dcp-system-type-tests PRIVATE src)
 target_compile_definitions(dcp-system-type-tests PRIVATE DCP_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_compile_options(dcp-system-type-tests PRIVATE -Wall -Wextra -Werror)
 
+# Focused test of which player a new gamepad plays (tools/test.ps1); not part of the default build.
+add_executable(dcp-pad-slots-tests EXCLUDE_FROM_ALL tests/pad_slots_tests.c)
+target_include_directories(dcp-pad-slots-tests PRIVATE src)
+target_compile_options(dcp-pad-slots-tests PRIVATE -Wall -Wextra -Werror)
+
 # Focused tests of the online party snapshot: the observer, the snapshot and its report rules, the hook on a synthetic
 # image, and the client's sources (tools/test.ps1); not part of the default build.
 add_executable(dcp-discord-tests EXCLUDE_FROM_ALL tests/discord_tests.cpp)

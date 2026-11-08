@@ -104,6 +104,13 @@ int dcp_skip_intro(const char *settings_file);
 /* 1 when the settings file asks for Circle to confirm in the menus (japanese_menu_buttons; 0 by default). */
 int dcp_japanese_menu_buttons(const char *settings_file);
 
+/* The controller the settings file gives player 1-4 (playerN_controller: empty, "vendor:product" or "none") into out;
+ * its length. */
+size_t dcp_player_controller(const char *settings_file, int player, char *out, size_t size);
+
+/* 0 when the settings file turns the on-screen controls off (touch_controls=off; 1 by default). */
+int dcp_touch_controls(const char *settings_file);
+
 /* 1 when the settings file shows every Gallery picture (unlock_gallery; 0 by default). */
 int dcp_unlock_gallery(const char *settings_file);
 

@@ -1117,7 +1117,16 @@ private:
             ui.Help("Xbox prompts are not available for this game build.");
         }
         ui.Toggle("Japanese Menu Buttons", JapaneseMenuButtonsHelp().c_str(), kJapaneseMenuButtonsKey, false, "Off", "On");
-        ui.Info("Keyboard", "Always on, together with the controller.");
+        if (ui.Section("Players", true)) {
+            ui.Help("Which controller plays each player. A new controller takes the first free player set to it, "
+                    "else the first free player set to Any controller.");
+            for (int player = 1; player <= 4; ++player) {
+                const std::string key = PlayerControllerKey(player);
+                const std::string label = std::string(Tr("Player")) + " " + std::to_string(player);
+                ui.Combo(label.c_str(), nullptr, key.c_str(), "", PlayerControllerOptions(player, key));
+            }
+        }
+        ui.Info("Keyboard", "Always on, together with player 1's controller.");
         if (ui.ConfirmRow("Keyboard defaults", "Puts the keyboard controls and the port hotkeys back to their defaults.",
                           "Reset to defaults", "Put every key back to its default?", "Reset")) {
             ResetKeys(settings_);
@@ -1134,6 +1143,34 @@ private:
                 KeyRow(ui, static_cast<DcpKeyAction>(action));
             }
         }
+    }
+
+    // Any controller, Keyboard only for player 1, the connected controllers (one entry per model) and a saved controller that
+    // is not connected.
+    std::vector<trg::Option> PlayerControllerOptions(int player, const std::string& key) const {
+        std::vector<trg::Option> options{{"", Tr("Any controller")}};
+        if (player == 1) {
+            options.push_back({kNoController, Tr("Keyboard only")});
+        }
+        const auto listed = [&](const std::string& value) {
+            return std::any_of(options.begin(), options.end(), [&](const trg::Option& o) { return o.value == value; });
+        };
+        int count = 0;
+        SDL_JoystickID* ids = SDL_GetGamepads(&count);
+        for (int i = 0; ids && i < count; ++i) {
+            char model[16];
+            std::snprintf(model, sizeof(model), "%04x:%04x", SDL_GetGamepadVendorForID(ids[i]),
+                          SDL_GetGamepadProductForID(ids[i]));
+            if (!listed(model)) {
+                const char* name = SDL_GetGamepadNameForID(ids[i]);
+                options.push_back({model, name && *name ? name : model});
+            }
+        }
+        SDL_free(ids);
+        if (const std::string saved = settings_.Get(key); !saved.empty() && !listed(saved)) {
+            options.push_back({saved, Tr("Saved controller (not connected)")});
+        }
+        return options;
     }
 
     std::string JapaneseMenuButtonsHelp() const {
