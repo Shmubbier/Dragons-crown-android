@@ -837,10 +837,6 @@ int main(int argc, char **argv) {
     const size_t party_stub_bytes = party_hook_stub_bytes();
     const size_t ultrawide_stub_bytes = ultrawide_wanted ? ultrawide_hooks_stub_bytes() : 0;
     const size_t exit_game_stub_bytes = known_build && game_build.exit_game ? exit_game_hook_stub_bytes() : 0;
-    const int skip_intro_requested=skip_intro_wanted(dcp_skip_intro(settings_file));
-    const size_t skip_intro_stub_area = known_build && skip_intro_requested ? skip_intro_stub_bytes() : 0;
-    const int gallery_unlock_requested=gallery_unlock_wanted(dcp_unlock_gallery(settings_file));
-    const size_t gallery_unlock_stub_area = known_build && game_build.unlock_gallery && gallery_unlock_requested ? gallery_unlock_stub_bytes() : 0;
 #if DCP_GUEST_TRANSLATED
     const int lzcnt_rewrite = 0; /* Box64 implements LZCNT */
     /* Hooks whose x86 stubs call native handlers directly are not bridged yet. */
@@ -849,6 +845,10 @@ int main(int argc, char **argv) {
     const int lzcnt_rewrite = lzcnt_compat_needed(isa_host_features()) || getenv("DCP_EMULATE_LZCNT");
     const int native_hooks = 1;
 #endif
+    const int skip_intro_requested=native_hooks && skip_intro_wanted(dcp_skip_intro(settings_file));
+    const size_t skip_intro_stub_area = known_build && skip_intro_requested ? skip_intro_stub_bytes() : 0;
+    const int gallery_unlock_requested=native_hooks && gallery_unlock_wanted(dcp_unlock_gallery(settings_file));
+    const size_t gallery_unlock_stub_area = known_build && game_build.unlock_gallery && gallery_unlock_requested ? gallery_unlock_stub_bytes() : 0;
     const size_t lzcnt_stub_bytes = lzcnt_rewrite ? lzcnt_compat_stub_bytes() : 0;
     const size_t hook_bytes = round_page(cheat_stub_bytes + save_stub_bytes + voice_stub_bytes + system_type_stub_bytes +
                                          ultrawide_stub_bytes + lzcnt_stub_bytes + party_stub_bytes + exit_game_stub_bytes + skip_intro_stub_area +
@@ -1047,11 +1047,11 @@ int main(int argc, char **argv) {
                                        party_stub_bytes);
         else printf("Party: not reported, %s\n",party_failure);
     }
-    const int skip_intro_applied=skip_intro_install(image,size,entry,known_build ? build_key : NULL,native_hooks && skip_intro_requested,
+    const int skip_intro_applied=skip_intro_install(image,size,entry,known_build ? build_key : NULL,skip_intro_requested,
                                                     image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes+system_type_stub_bytes+ultrawide_stub_bytes+lzcnt_stub_bytes+party_stub_bytes+exit_game_stub_bytes,
                                                     skip_intro_stub_area);
     const int gallery_unlock_applied=gallery_unlock_install(image,size,entry,known_build && game_build.unlock_gallery ? build_key : NULL,
-                                                            native_hooks && gallery_unlock_requested,
+                                                            gallery_unlock_requested,
                                                             image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes+system_type_stub_bytes+ultrawide_stub_bytes+lzcnt_stub_bytes+party_stub_bytes+exit_game_stub_bytes+skip_intro_stub_area,
                                                             gallery_unlock_stub_area);
     const int japanese_menu_buttons=menu_buttons_wanted(dcp_japanese_menu_buttons(settings_file));
