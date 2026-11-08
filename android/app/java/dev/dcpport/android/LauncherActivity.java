@@ -54,7 +54,7 @@ public class LauncherActivity extends Activity {
     private static final String HOME = "home", GRAPHICS = "graphics", GAMEPLAY = "gameplay", CONTROLS = "controls",
             CHEATS = "cheats", ONLINE = "online", ABOUT = "about";
     private static final String ON = "1", OFF = "0";
-    private static final String SOURCE_URL = "https://github.com/Shmubbier/dragons-crown-pro-pc/tree/android-port";
+    private static final String SOURCE_URL = "https://github.com/Shmubbier/Dragons-crown-android/tree/android-port";
 
     private final ArrayDeque<String> pages = new ArrayDeque<>();
     private Ini ini;

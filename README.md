@@ -4,7 +4,7 @@
 
 ### Vanillaware's PS4 beat 'em up on arm64 Android phones, built on saulob's [Dragon's Crown Pro PC](https://github.com/saulob/dragons-crown-pro-pc) port, with touch controls, a Material You settings app, cheats and online co-op with PC players
 
-[![Android release](https://img.shields.io/github/v/release/Shmubbier/dragons-crown-pro-pc?style=for-the-badge&label=android&color=3ddc84&labelColor=07101f&include_prereleases&cacheSeconds=300)](https://github.com/Shmubbier/dragons-crown-pro-pc/releases)
+[![Android release](https://img.shields.io/github/v/release/Shmubbier/Dragons-crown-android?style=for-the-badge&label=android&color=3ddc84&labelColor=07101f&include_prereleases&cacheSeconds=300)](https://github.com/Shmubbier/Dragons-crown-android/releases)
 ![Platform](https://img.shields.io/badge/platform-Android%2013%2B%20arm64%20(experimental)-3ddc84?style=for-the-badge&labelColor=07101f)
 [![Upstream](https://img.shields.io/badge/based%20on-PC%20port%20v1.0.0-e0bb32?style=for-the-badge&labelColor=07101f)](https://github.com/saulob/dragons-crown-pro-pc)
 
@@ -78,7 +78,7 @@
 ## Installing
 
 1. Install the game on a PC with the PC port's launcher, from your own `.pkg` file.
-2. Download the APK from this fork's [releases](https://github.com/Shmubbier/dragons-crown-pro-pc/releases) and install it on the phone.
+2. Download the APK from this fork's [releases](https://github.com/Shmubbier/Dragons-crown-android/releases) and install it on the phone.
 3. Copy the PC install's prepared game and boot image to the app's files folder (`Android/data/dev.dcpport.android/files`). Copy `game/prepared/v1.03` to `app0/` and `build/image/v1.03` to `image/v1.03/`. Copy your PC `user/` folder too if you want your saves and settings.
 4. Set up the Turnip driver (see [docs/ANDROID.md](docs/ANDROID.md#graphics-driver-mesa-turnip)).
 5. Open the app and press **Play**.
@@ -95,7 +95,7 @@ The PC build is unchanged from upstream; see the [upstream README](https://githu
 
 ## Reporting problems
 
-Open an [issue on this fork](https://github.com/Shmubbier/dragons-crown-pro-pc/issues) for Android problems. Attach `logs/console.txt` from the app's files folder, and give your phone model, GPU and driver (Turnip version or the phone's own). Problems that also happen on PC belong [upstream](https://github.com/saulob/dragons-crown-pro-pc/issues).
+Open an [issue on this fork](https://github.com/Shmubbier/Dragons-crown-android/issues) for Android problems. Attach `logs/console.txt` from the app's files folder, and give your phone model, GPU and driver (Turnip version or the phone's own). Problems that also happen on PC belong [upstream](https://github.com/saulob/dragons-crown-pro-pc/issues).
 
 ## Credits
 
