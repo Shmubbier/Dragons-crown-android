@@ -1,4 +1,5 @@
 #include "startup_save_hook.h"
+#include "guest_cpu.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -56,7 +57,7 @@ void GUEST_HOOK_ABI startup_save_step_hook(GuestRegs *regs) {
         if (category != CATEGORY_OK) return;
         uint64_t owner;
         memcpy(&owner, (const void *)(uintptr_t)(regs->r12 + BLOCK_OWNER_OFFSET), sizeof(owner));
-        accept_fn(block_fn(owner), regs->r12);
+        guest_call2(accept_fn, guest_call1(block_fn, owner), regs->r12); /* game code (guest_cpu.h) */
     }
 }
 

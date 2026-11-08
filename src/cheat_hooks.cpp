@@ -4,11 +4,15 @@
 #include <cstdio>
 #include <chrono>
 #include <cstring>
+#include <type_traits>
 #include <string>
 #include <vector>
 
 #include "dcp_cheats.h"
 #include "runtime_cheats.h"
+extern "C" {
+#include "guest_cpu.h"
+}
 
 namespace dcp::cheats {
 namespace {
@@ -739,16 +743,38 @@ constexpr uint8_t kEquipmentItemPrologue[] = {0x85, 0xf6, 0x78, 0x3b};
 constexpr uint8_t kIsGearPrologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x56, 0x53, 0x48, 0x89, 0xfb};
 constexpr uint8_t kSetDurabilityPrologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x53};
 
+#if DCP_GUEST_TRANSLATED
+// Under translation the game's functions are x86 code: each bound pointer is a native function that runs its game
+// function on this thread's emulator (guest_cpu.h). Narrow arguments travel in full registers, as SysV passes them.
+uintptr_t g_game_at[DCP_CHEAT_FN_SET_DURABILITY + 1];
+template <DcpCheatFunction F, typename R, typename... A>
+R GameCall(A... args) {
+    static_assert(sizeof...(A) <= 6);
+    const uint64_t v[6] = {static_cast<uint64_t>(args)...};
+    const uint64_t result = guest_call6(g_game_at[F], v[0], v[1], v[2], v[3], v[4], v[5]);
+    if constexpr (!std::is_void_v<R>) return static_cast<R>(result);
+}
+template <DcpCheatFunction F, typename R, typename... A>
+void BindGame(R (*&slot)(A...), uint8_t* address) {
+    g_game_at[F] = reinterpret_cast<uintptr_t>(address);
+    slot = &GameCall<F, R, A...>;
+}
+#else
+template <DcpCheatFunction F, typename Slot>
+void BindGame(Slot& slot, uint8_t* address) {
+    slot = reinterpret_cast<Slot>(address);
+}
+#endif
+
 template <size_t N>
 bool PrologueMatches(const uint8_t* image, uint64_t offset, const uint8_t (&bytes)[N]) {
     return std::memcmp(image + offset, bytes, N) == 0;
 }
 
 uint64_t GameContext(uint64_t unit) {
-    using Virtual = uint64_t(GUEST_HOOK_ABI*)(uint64_t);
     const dcp::cheats::HostMemory memory;
     const uint64_t method = memory.U64(memory.U64(unit) + dcp::cheats::kUnitContextVirtual);
-    return reinterpret_cast<Virtual>(method)(unit);
+    return guest_call1(method, unit); // game code (guest_cpu.h)
 }
 
 uint64_t GUEST_HOOK_ABI GameGoldContext(uint64_t unit) {
@@ -815,28 +841,26 @@ void BindFunctions(uint8_t* image, const FunctionOffsets& f, bool check_prologue
              PrologueMatches(image, kLevelPatternOffset, kLevelPatternPrologue) &&
              PrologueMatches(image, kSetLevelOffset, kSetLevelPrologue) &&
              PrologueMatches(image, kWriteStatsOffset, kWriteStatsPrologue))) {
-        functions.record_mode = reinterpret_cast<int32_t(GUEST_HOOK_ABI*)(uint64_t)>(at(DCP_CHEAT_FN_RECORD_MODE));
-        functions.record_stage = reinterpret_cast<uint8_t(GUEST_HOOK_ABI*)(uint64_t)>(at(DCP_CHEAT_FN_RECORD_STAGE));
-        functions.max_level =
-            reinterpret_cast<int32_t(GUEST_HOOK_ABI*)(int32_t, int32_t, int32_t)>(at(DCP_CHEAT_FN_MAX_LEVEL));
-        functions.level_entry = reinterpret_cast<uint64_t(GUEST_HOOK_ABI*)(int32_t, int32_t)>(at(DCP_CHEAT_FN_LEVEL_ENTRY));
-        functions.level_pattern = reinterpret_cast<int32_t(GUEST_HOOK_ABI*)(uint64_t)>(at(DCP_CHEAT_FN_LEVEL_PATTERN));
-        functions.set_level = reinterpret_cast<void(GUEST_HOOK_ABI*)(uint64_t, uint32_t)>(at(DCP_CHEAT_FN_SET_LEVEL));
-        functions.write_stats = reinterpret_cast<void(GUEST_HOOK_ABI*)(uint64_t, int32_t, int32_t, int32_t, int32_t)>(
-            at(DCP_CHEAT_FN_WRITE_STATS));
+        BindGame<DCP_CHEAT_FN_RECORD_MODE>(functions.record_mode, at(DCP_CHEAT_FN_RECORD_MODE));
+        BindGame<DCP_CHEAT_FN_RECORD_STAGE>(functions.record_stage, at(DCP_CHEAT_FN_RECORD_STAGE));
+        BindGame<DCP_CHEAT_FN_MAX_LEVEL>(functions.max_level, at(DCP_CHEAT_FN_MAX_LEVEL));
+        BindGame<DCP_CHEAT_FN_LEVEL_ENTRY>(functions.level_entry, at(DCP_CHEAT_FN_LEVEL_ENTRY));
+        BindGame<DCP_CHEAT_FN_LEVEL_PATTERN>(functions.level_pattern, at(DCP_CHEAT_FN_LEVEL_PATTERN));
+        BindGame<DCP_CHEAT_FN_SET_LEVEL>(functions.set_level, at(DCP_CHEAT_FN_SET_LEVEL));
+        BindGame<DCP_CHEAT_FN_WRITE_STATS>(functions.write_stats, at(DCP_CHEAT_FN_WRITE_STATS));
     } else {
         std::printf("Cheats: Level Up (+1 Level) not available, the game's level functions differ\n");
     }
     if (fits(PrologueMatches(image, kIsDeadOffset, kIsDeadPrologue) && PrologueMatches(image, kRefillOffset, kRefillPrologue))) {
-        functions.is_dead = reinterpret_cast<uint8_t(GUEST_HOOK_ABI*)(uint64_t)>(at(DCP_CHEAT_FN_IS_DEAD));
-        functions.refill = reinterpret_cast<void(GUEST_HOOK_ABI*)(uint64_t, uint32_t, uint32_t, uint32_t)>(at(DCP_CHEAT_FN_REFILL));
+        BindGame<DCP_CHEAT_FN_IS_DEAD>(functions.is_dead, at(DCP_CHEAT_FN_IS_DEAD));
+        BindGame<DCP_CHEAT_FN_REFILL>(functions.refill, at(DCP_CHEAT_FN_REFILL));
     } else {
         std::printf("Cheats: the Health and Mana refill is not available, the game's fill functions differ\n");
     }
     if (fits(PrologueMatches(image, kGetGoldOffset, kGetGoldPrologue) && PrologueMatches(image, kAddGoldOffset, kAddGoldPrologue))) {
         functions.gold_context = GameGoldContext;
-        functions.get_gold = reinterpret_cast<int32_t(GUEST_HOOK_ABI*)(uint64_t)>(at(DCP_CHEAT_FN_GET_GOLD));
-        functions.add_gold = reinterpret_cast<void(GUEST_HOOK_ABI*)(uint64_t, int32_t)>(at(DCP_CHEAT_FN_ADD_GOLD));
+        BindGame<DCP_CHEAT_FN_GET_GOLD>(functions.get_gold, at(DCP_CHEAT_FN_GET_GOLD));
+        BindGame<DCP_CHEAT_FN_ADD_GOLD>(functions.add_gold, at(DCP_CHEAT_FN_ADD_GOLD));
     } else {
         std::printf("Cheats: Add 1,000 Gold not available, the game's gold functions differ\n");
     }
@@ -844,11 +868,10 @@ void BindFunctions(uint8_t* image, const FunctionOffsets& f, bool check_prologue
              PrologueMatches(image, kEquipmentItemOffset, kEquipmentItemPrologue) &&
              PrologueMatches(image, kIsGearOffset, kIsGearPrologue) &&
              PrologueMatches(image, kSetDurabilityOffset, kSetDurabilityPrologue))) {
-        functions.equipment_count = reinterpret_cast<uint8_t(GUEST_HOOK_ABI*)(uint64_t)>(at(DCP_CHEAT_FN_EQUIPMENT_COUNT));
-        functions.equipment_item = reinterpret_cast<uint64_t(GUEST_HOOK_ABI*)(uint64_t, int32_t)>(at(DCP_CHEAT_FN_EQUIPMENT_ITEM));
-        functions.is_gear = reinterpret_cast<uint8_t(GUEST_HOOK_ABI*)(uint64_t)>(at(DCP_CHEAT_FN_IS_GEAR));
-        functions.set_durability =
-            reinterpret_cast<void(GUEST_HOOK_ABI*)(uint64_t, int32_t, int32_t)>(at(DCP_CHEAT_FN_SET_DURABILITY));
+        BindGame<DCP_CHEAT_FN_EQUIPMENT_COUNT>(functions.equipment_count, at(DCP_CHEAT_FN_EQUIPMENT_COUNT));
+        BindGame<DCP_CHEAT_FN_EQUIPMENT_ITEM>(functions.equipment_item, at(DCP_CHEAT_FN_EQUIPMENT_ITEM));
+        BindGame<DCP_CHEAT_FN_IS_GEAR>(functions.is_gear, at(DCP_CHEAT_FN_IS_GEAR));
+        BindGame<DCP_CHEAT_FN_SET_DURABILITY>(functions.set_durability, at(DCP_CHEAT_FN_SET_DURABILITY));
     } else {
         std::printf("Cheats: Infinite Durability refill not available, the game's item functions differ\n");
     }

@@ -839,15 +839,12 @@ int main(int argc, char **argv) {
     const size_t exit_game_stub_bytes = known_build && game_build.exit_game ? exit_game_hook_stub_bytes() : 0;
 #if DCP_GUEST_TRANSLATED
     const int lzcnt_rewrite = 0; /* Box64 implements LZCNT */
-    /* Hooks whose x86 stubs call native handlers directly are not bridged yet. */
-    const int native_hooks = 0;
 #else
     const int lzcnt_rewrite = lzcnt_compat_needed(isa_host_features()) || getenv("DCP_EMULATE_LZCNT");
-    const int native_hooks = 1;
 #endif
-    const int skip_intro_requested=native_hooks && skip_intro_wanted(dcp_skip_intro(settings_file));
+    const int skip_intro_requested=skip_intro_wanted(dcp_skip_intro(settings_file));
     const size_t skip_intro_stub_area = known_build && skip_intro_requested ? skip_intro_stub_bytes() : 0;
-    const int gallery_unlock_requested=native_hooks && gallery_unlock_wanted(dcp_unlock_gallery(settings_file));
+    const int gallery_unlock_requested=gallery_unlock_wanted(dcp_unlock_gallery(settings_file));
     const size_t gallery_unlock_stub_area = known_build && game_build.unlock_gallery && gallery_unlock_requested ? gallery_unlock_stub_bytes() : 0;
     const size_t lzcnt_stub_bytes = lzcnt_rewrite ? lzcnt_compat_stub_bytes() : 0;
     const size_t hook_bytes = round_page(cheat_stub_bytes + save_stub_bytes + voice_stub_bytes + system_type_stub_bytes +
@@ -1024,23 +1021,23 @@ int main(int argc, char **argv) {
         printf("LZCNT: rewritten at %d sites (%s)\n",LZCNT_SITE_COUNT,rewritten_build);
     }
 #endif
-    if (native_hooks && runtime_cheats_hooks_wanted(known_build && game_build.cheats)) {
+    if (runtime_cheats_hooks_wanted(known_build && game_build.cheats)) {
         if (!game_build.features_by_signature) runtime_cheat_hooks_install(image,size,entry,image+round_page(size),hook_bytes);
         else if (located.cheats) runtime_cheat_hooks_install_located(image,size,entry,&located.cheat_sites,image+round_page(size),hook_bytes);
         else printf("Cheats: unavailable, %s\n",located.cheat_failure);
     }
-    if (native_hooks && known_build) startup_save_hook_install(image,size,entry,image+round_page(size)+cheat_stub_bytes,hook_bytes-cheat_stub_bytes);
-    if (native_hooks && known_build && game_build.japanese_npc_voices && voice_hooks_enabled() &&
+    if (known_build) startup_save_hook_install(image,size,entry,image+round_page(size)+cheat_stub_bytes,hook_bytes-cheat_stub_bytes);
+    if (known_build && game_build.japanese_npc_voices && voice_hooks_enabled() &&
         (!game_build.features_by_signature || dcp_npc_voice_resources(app0))) {
         uint8_t *voice_stubs=image+round_page(size)+cheat_stub_bytes+save_stub_bytes;
         if (!game_build.features_by_signature) voice_hooks_install(image,size,entry,voice_stubs,voice_stub_bytes);
         else if (located.voices) voice_hooks_install_located(image,size,entry,&located.voice_sites,voice_stubs,voice_stub_bytes);
         else printf("Japanese NPC Voices: unavailable, %s\n",located.voice_failure);
     }
-    if (native_hooks && known_build && runtime_online_active())
+    if (known_build && runtime_online_active())
         system_type_hook_install(image,size,entry,image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes,
                                  system_type_stub_bytes,runtime_online_system_type);
-    if (native_hooks && known_build && runtime_online_active() && !runtime_cheats_hooks_wanted(1)) {
+    if (known_build && runtime_online_active() && !runtime_cheats_hooks_wanted(1)) {
         if (party_located)
             party_hook_install_located(image,size,entry,&party_sites,
                                        image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes+system_type_stub_bytes+ultrawide_stub_bytes+lzcnt_stub_bytes,
@@ -1059,7 +1056,7 @@ int main(int argc, char **argv) {
     exit_game_set_accept_east(japanese_menu_buttons && menu_buttons_applied);
     const unsigned skip_applied=skip_offers_install(image,size,known_build ? build_key : NULL,
                                                     skip_offers_wanted(dcp_skip_offers(settings_file)));
-    if (native_hooks && known_build && game_build.exit_game) {
+    if (known_build && game_build.exit_game) {
         if (exit_game_located) {
             exit_game_set_handler(dcpgpu_request_close);
             exit_game_hook_install_located(image,size,entry,&exit_game_sites,
@@ -1070,7 +1067,7 @@ int main(int argc, char **argv) {
     printf("DCP: render resolution %dx%d (%s)%s\n",render_target.width,render_target.height,render_resolution->key,
            render_target.pro_memory ? ", PS4 Pro memory path" : "");
     printf("DCP: Aspect ratio: %s, render target %dx%d\n",aspect_ratio->name,render_target.width,render_target.height);
-    const int ultrawide_effective=install_true_ultrawide(native_hooks && true_ultrawide_requested,known_build ? &game_build : NULL,&located,size,entry,
+    const int ultrawide_effective=install_true_ultrawide(true_ultrawide_requested,known_build ? &game_build : NULL,&located,size,entry,
                            ultrawide_bytes ? round_page(size)+hook_bytes : 0,
                            image+round_page(size)+cheat_stub_bytes+save_stub_bytes+voice_stub_bytes+system_type_stub_bytes);
     const DcpRunSettings run_settings={known_build ? game_build.label : NULL,runtime_online_play_enabled(),

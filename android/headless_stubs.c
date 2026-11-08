@@ -1,4 +1,4 @@
-/* Headless Android bring-up build: the features not ported yet (renderer, launcher UI, cheats,
+/* Headless Android bring-up build: the features not ported yet (renderer, launcher UI,
  * trophies) report themselves unavailable. Nothing here pretends to succeed. */
 #include <stddef.h>
 #include <stdint.h>
@@ -6,9 +6,7 @@
 #include <string.h>
 #include "dcpgpu.h"
 #include "dcp_launcher.h"
-#include "runtime_cheats.h"
 #include "runtime_online.h"
-#include "party_hook.h"
 #include "trophies/trophy_runtime.h"
 
 #ifndef DCP_ANDROID_GPU
@@ -48,19 +46,6 @@ DcpLauncherResult dcp_launcher_run(const DcpLauncherConfig *config) {
 #endif
 }
 
-/* ---- cheats: off ---- */
-size_t runtime_cheat_hooks_stub_bytes(void) { return 0; }
-int runtime_cheats_hooks_wanted(int build_has_hooks) { (void)build_has_hooks; return 0; }
-int runtime_cheats_log_state(int build_has_hooks) { (void)build_has_hooks; puts("Cheats: not in the Android build yet"); return 0; }
-void runtime_cheats_set_online(int online) { (void)online; }
-void runtime_cheats_set_slot_human(int (*is_human)(int slot)) { (void)is_human; }
-void runtime_cheats_start(unsigned saved_mask, int experience_multiplier, int movement_speed) {
-    (void)saved_mask; (void)experience_multiplier; (void)movement_speed;
-}
-size_t party_hook_stub_bytes(void) { return 0; }
-void party_hook_observe_unit(uint64_t unit) { (void)unit; }
-void runtime_cheats_set_player_observer(void (*observe)(uint64_t unit)) { (void)observe; }
-
 /* ---- trophies: unavailable (SCE_NP_TROPHY_ERROR_NOT_INITIALIZED) ---- */
 #define TROPHY_UNAVAILABLE ((int32_t)0x80551602)
 void trophy_runtime_configure(const char *app0, const char *user_dir) { (void)app0; (void)user_dir; }
@@ -85,16 +70,3 @@ int32_t trophy_runtime_unlock(int32_t context, int32_t handle, int32_t trophy_id
 int32_t trophy_runtime_unlock_state(int32_t context, int32_t handle, uint32_t *flags, uint32_t *count) {
     (void)context; (void)handle; (void)flags; (void)count; return TROPHY_UNAVAILABLE;
 }
-
-/* ---- in-game overlay page for cheats: shown as unavailable ---- */
-void runtime_cheat_action(int action) { (void)action; }
-void runtime_cheat_clear_actions(void) {}
-int runtime_cheat_enabled(int cheat) { (void)cheat; return 0; }
-int runtime_cheat_experience_cycle(void) { return 1; }
-int runtime_cheat_experience_multiplier(void) { return 1; }
-int runtime_cheat_movement_cycle(void) { return 1; }
-int runtime_cheat_movement_speed(void) { return 1; }
-void runtime_cheat_toggle(int cheat) { (void)cheat; }
-int runtime_cheats_available(void) { return 0; }
-int runtime_cheats_online_locked(void) { return 0; }
-

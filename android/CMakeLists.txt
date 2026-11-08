@@ -65,7 +65,7 @@ set(RUNTIME_C
     runtime_rtc.c runtime_matching2.cpp runtime_online.cpp runtime_rudp.cpp runtime_rwlock.c runtime_savedata.c runtime_session_log.c runtime_sema.c runtime_services.c
     runtime_thread.c runtime_time.c runtime_log_posix.c exit_game_hook.c exit_game_text.c gallery_unlock.c guest_hook.c
     title_layout.c skip_offers.c skip_intro.c menu_buttons.c startup_save_hook.c system_type_hook.c ultrawide_hooks.c
-    voice_hooks.c)
+    voice_hooks.c cheat_hooks.cpp party_hook.cpp runtime_cheats.cpp)
 list(TRANSFORM RUNTIME_C PREPEND ${REPO}/src/)
 set(LAUNCHER_CORE
     launcher/boot_image.cpp launcher/build_scan.cpp launcher/build_scan_sites.cpp launcher/feature_sites.cpp

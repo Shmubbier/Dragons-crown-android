@@ -1,4 +1,5 @@
 #include "guest_hook.h"
+#include "guest_cpu.h"
 
 #include <string.h>
 
@@ -134,7 +135,8 @@ GuestHookStatus guest_hooks_install(uint8_t *image, uint64_t size, uint64_t entr
         const GuestHook *hook = &hooks[i];
         uint8_t *stub = stubs + i * stride;
         uint8_t *at = stub;
-        const uint64_t handler = (uint64_t)(uintptr_t)hook->handler;
+        /* Under translation the stub calls a bridge that runs the native handler (guest_cpu.h). */
+        const uint64_t handler = (uint64_t)guest_host_function((const void *)hook->handler, hook->name);
         const uint64_t resume = (uint64_t)(uintptr_t)(image + hook->offset + hook->length);
         at = emit(at, stub_save, sizeof(stub_save));
         at = emit(at, &handler, 8);

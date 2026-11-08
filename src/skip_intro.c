@@ -1,4 +1,5 @@
 #include "skip_intro.h"
+#include "guest_cpu.h"
 
 #include <stdatomic.h>
 #include <stdint.h>
@@ -332,8 +333,8 @@ int skip_intro_install(unsigned char *image, uint64_t size, uint64_t entry, cons
     const int64_t distance = (int64_t)(intptr_t)stubs - (int64_t)(intptr_t)(image + site + 5);
     if (distance > INT32_MAX || distance < INT32_MIN) return unavailable(game, "stub too far from the code");
     unsigned char stub[SKIP_INTRO_STUB_BYTES] = {0};
-    const size_t length = skip_intro_build_stub(stub, (uint64_t)(uintptr_t)skip_intro_claim,
-                                                (uint64_t)(uintptr_t)skip_intro_delivered,
+    const size_t length = skip_intro_build_stub(stub, (uint64_t)guest_host_function((const void *)skip_intro_claim, "skip_intro_claim"),
+                                                (uint64_t)guest_host_function((const void *)skip_intro_delivered, "skip_intro_delivered"),
                                                 (uint64_t)(uintptr_t)(image + site + HOOK_LENGTH));
     if (length > SKIP_INTRO_STUB_BYTES) return unavailable(game, "stub too large");
     memcpy(stubs, stub, SKIP_INTRO_STUB_BYTES);

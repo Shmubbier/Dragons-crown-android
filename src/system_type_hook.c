@@ -1,4 +1,5 @@
 #include "system_type_hook.h"
+#include "guest_cpu.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -92,7 +93,7 @@ void GUEST_HOOK_ABI system_type_hook(GuestRegs *regs) {
     if ((uint32_t)regs->rsi != SYSTEM_TYPE_PS4_RECORD || !text_of || !set_text || !regs->r12) return;
     const char *text = text_of((const char *)(uintptr_t)regs->r12);
     if (!text) return;
-    set_text(regs->rdi, text);
+    guest_call2(set_text, regs->rdi, text); /* game code (guest_cpu.h) */
     regs->skip = 1;
 }
 
