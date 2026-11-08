@@ -130,6 +130,13 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title, GraphicsApi api
         if (!SDL_GetWindowBordersSize(window, &borders.top, &borders.left, &borders.bottom, &borders.right)) {
             borders = dcp::EstimatedBorders(display->scale);
         }
+#ifdef __ANDROID__
+        // The phone keeps the 80% window it had before v1.1.0: at the screen's full width the Inn loses 10-15 fps at 720p on
+        // an Adreno 740 (measured; 1026x577 against 1282x721).
+        const double android_scale = std::min({1.0, 0.8 * display->usable.w / window_width, 0.8 * display->usable.h / window_height});
+        window_width = static_cast<int>(std::lround(window_width * android_scale));
+        window_height = static_cast<int>(std::lround(window_height * android_scale));
+#endif
         const dcp::WindowFit fit = dcp::FitWindowToArea(window_width, window_height, borders, display->usable.x,
                                                         display->usable.y, display->usable.w, display->usable.h);
         window_width = fit.width;
