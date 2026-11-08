@@ -10,10 +10,12 @@ Source code and issue tracker:
 https://github.com/saulob/dragons-crown-pro-pc
 
 
-NO GAME FILES ARE INCLUDED
---------------------------
-You need your own legally obtained copy of the game: a decrypted Dragon's
-Crown Pro PS4 package (.pkg). This port runs these releases:
+THE GAME ITSELF IS NOT INCLUDED
+-------------------------------
+No game package or executable is included. You need your own legally obtained
+copy of the game: a decrypted Dragon's Crown Pro PS4 package (.pkg). The port
+does include the localization resources for its additional languages
+(credited under PLAYING below). This port runs these releases:
 
   US:                 Title ID CUSA10454, versions 1.00 (the base package) and 1.01 (the base package, then the update)
   Japan:              Title ID CUSA07001, versions 1.00 (the base package), 1.02 and 1.03 (the base package, then the update)
@@ -128,9 +130,20 @@ PLAYING
   whoever can see your status. To turn it off, add discord_presence = off to
   user/dcp.ini.
 - Brazilian Portuguese covers game text, menus, subtitles, the launcher and the
-  F1 options on the CUSA10454 1.00 USA build. It is based on the work of
+  F1 options on every supported build. It is based on the work of
   Marcelo - Uma Ficha (https://www.youtube.com/@umaficha1), used with
-  permission. Character speech bubbles, credits and trophies stay in English.
+  permission. New characters get Portuguese default messages; characters
+  already in a save keep theirs. Credits and trophies stay in the build's
+  own language. The translated manual pages are shown on the USA and
+  European builds only.
+- English on the Japanese and Asia/Hong Kong builds is provided by the PC
+  port, not by the PS4 release. It is always listed, needs no other game or
+  setup, and uses the same Menu & Subtitles selector as Portuguese (Brazil).
+- Russian covers game text, menus, subtitles and character messages on every
+  supported build. It is based on the fan translation by Exclusive Studio
+  (https://ex-s.ru/dc.html), with PS4 porting work by AlchemistLab; it is not
+  an official translation. No fan package is needed. The launcher, the F1
+  options and the F10 overlay stay in English.
 - F10 opens the Cheats menu (meant for offline and local play); the launcher has a
   Cheats page for the values saved for the next start.
 - An experimental AMD water workaround (black areas under characters standing
@@ -172,7 +185,8 @@ usr/share/licenses/DragonsCrownProPC/LICENSE.txt inside the AppImage
 Third-party components keep their own licenses. Their license files and
 notices are in the same folder, starting with THIRD-PARTY-LICENSES.txt.
 
-Game files are not included and are not covered by this project's license.
+The game package and executable are not included. The game and its assets are
+not covered by this project's license.
 This port is not affiliated with or endorsed by Vanillaware, Atlus, SEGA,
 Sony Interactive Entertainment or any other rights holder of Dragon's Crown
 Pro.

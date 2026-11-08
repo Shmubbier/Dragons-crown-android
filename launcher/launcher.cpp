@@ -99,7 +99,7 @@ std::string GameFilesHelp() {
            SupportedBuildsText() +
            Tr(". The USA 1.01, Japanese 1.02 and 1.03 and Asia/Hong Kong 1.02 updates are installed over their "
               "respective 1.00 base packages. The game is unpacked into the game folder next to the program (about 6 "
-              "GB). No game files are included. Reinstalling keeps your saves and settings.");
+              "GB). The game itself is not included. Reinstalling keeps your saves and settings.");
 }
 #ifdef _WIN32
 constexpr char kShowLauncherHelp[] = "Off starts the game directly. Hold Shift while starting to bring it back.";
@@ -289,8 +289,7 @@ GameCheck CheckAndLog(const GamePaths& paths) {
     Log("game files in %s: %s%s%s%s", Utf8(paths.app0).c_str(), StateName(check.state), check.detail.empty() ? "" : " (",
         check.detail.c_str(), check.detail.empty() ? "" : ")");
     if (check.build) {
-        Log("build %s, regional archive %s", check.build->label,
-            check.build->regional_archive ? check.build->regional_archive : "none");
+        Log("build %s, language archive %s", check.build->label, check.build->translation->archive);
     }
     if (!check.eboot_sha256.empty()) {
         Log("eboot.bin SHA-256 %s", check.eboot_sha256.c_str());
@@ -920,8 +919,6 @@ private:
         launcher_->SetStatus(Tr("Install failed: ") + install_failure_, 8.0);
     }
 
-    const Display* SelectedDisplay() const { return DisplayForSetting(displays_, settings_.GetInt(kMonitorKey, 1)); }
-
     void PageDisplay(trg::Ui& ui) {
         ui.Choice("Display mode", "Borderless Fullscreen fills the monitor. F11 switches while playing.", kDisplayModeKey,
                   "windowed", {{"windowed", "Windowed"}, {"borderless", "Borderless Fullscreen"}}, 2);
@@ -982,13 +979,9 @@ private:
             height = kDefaultWindowHeight;
         }
         const WindowSize current{width, height};
-        const Display* display = SelectedDisplay();
         if (ImGui::BeginCombo("##window_size", WindowSizeLabel(current).c_str())) {
             for (const WindowSize size : WindowSizesFor(SavedAspectRatio())) {
                 const bool selected = size == current;
-                if (!selected && display && !WindowSizeFits(size, *display)) {
-                    continue;
-                }
                 if (ImGui::Selectable(WindowSizeLabel(size).c_str(), selected) && !selected) {
                     settings_.SetInt(kWindowWidthKey, size.width);
                     settings_.SetInt(kWindowHeightKey, size.height);
@@ -1369,8 +1362,8 @@ private:
             "This open source PC port is maintained and developed in my free time. If you enjoy the project and would "
             "like to support its continued development, you can sponsor my work on GitHub.",
             "Support is completely optional and helps support ongoing improvements and future projects.");
-        ui.Paragraph("Dragon's Crown Pro for PlayStation 4, running natively on this PC. No game files are included; "
-                     "the game runs from the user's own copy.");
+        ui.Paragraph("Dragon's Crown Pro for PlayStation 4, running natively on this PC. The game itself is not included; "
+                     "it runs from the user's own copy.");
         ui.Spacer(4);
         std::error_code ec;
         if (std::filesystem::is_directory(paths_.app0, ec)) {

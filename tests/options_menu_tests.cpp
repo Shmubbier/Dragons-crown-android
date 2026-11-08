@@ -517,7 +517,12 @@ void TestLauncherParity() {
         "online_stun",
         "online_connection_test_port",
         "show_ping",
-        "show_in_lobby"};
+        "show_in_lobby",
+        "player1_controller",
+        "player2_controller",
+        "player3_controller",
+        "player4_controller",
+        "touch_controls"};
     const auto has = [](const std::vector<std::string>& list, const std::string& key) {
         return std::find(list.begin(), list.end(), key) != list.end();
     };

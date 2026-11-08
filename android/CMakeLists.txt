@@ -65,22 +65,24 @@ set(RUNTIME_C
     runtime_rtc.c runtime_matching2.cpp runtime_online.cpp runtime_rudp.cpp runtime_rwlock.c runtime_savedata.c runtime_session_log.c runtime_sema.c runtime_services.c
     runtime_thread.c runtime_time.c runtime_log_posix.c exit_game_hook.c exit_game_text.c gallery_unlock.c guest_hook.c
     title_layout.c skip_offers.c skip_intro.c menu_buttons.c startup_save_hook.c system_type_hook.c ultrawide_hooks.c
-    voice_hooks.c cheat_hooks.cpp party_hook.cpp runtime_cheats.cpp)
+    voice_hooks.c cheat_hooks.cpp party_hook.cpp runtime_cheats.cpp default_message_hook.c latin_glyphs.c cyrillic_glyphs.c)
 list(TRANSFORM RUNTIME_C PREPEND ${REPO}/src/)
 set(LAUNCHER_CORE
     launcher/boot_image.cpp launcher/build_scan.cpp launcher/build_scan_sites.cpp launcher/feature_sites.cpp
     launcher/game_files.cpp launcher/npc_voice_resources.cpp launcher/paths.cpp launcher/settings.cpp
     launcher/text_languages.cpp launcher/game_profile.cpp launcher/options.cpp launcher/cpk_patch.cpp
-    launcher/online_settings.cpp launcher/online_view.cpp launcher/game_translation.cpp launcher/fms_sheet.cpp launcher/resolution.c launcher/resolution_probe.c
+    launcher/online_settings.cpp launcher/online_view.cpp launcher/game_translation.cpp launcher/latin_font.cpp launcher/cyrillic_font.cpp launcher/fms_sheet.cpp launcher/resolution.c launcher/resolution_probe.c
     src/net/addr.cpp src/net/connection_test.cpp src/net/crypto.cpp src/net/identity.cpp src/net/json.cpp
     src/net/lobby_link.cpp src/net/online_config.cpp src/net/online_version.cpp src/net/peer_socket.cpp src/net/relay_frame.cpp
     src/net/stun.cpp src/net/upnp.cpp src/net/websocket.cpp src/net/websocket_posix.cpp)
 list(TRANSFORM LAUNCHER_CORE PREPEND ${REPO}/)
-# The pt-BR translation sheets and visual patches as byte tables (game_translation.h), as launcher/CMakeLists.txt does.
-foreach(embed "sheets/*.json;kPtBrTranslation" "visual/*.dcpx.z;kPtBrVisualPatches")
+# The translations' sheets, slot maps, visual patches and letters as byte tables (game_translation.h), as launcher/CMakeLists.txt does.
+foreach(embed "pt-BR/sheets/*.json;kPtBrTranslation" "pt-BR/visual/*.dcpx.z;kPtBrVisualPatches" "pt-BR/sources/*.json;kPtBrSources"
+              "en/sheets/*.json;kEnTranslation" "en/sources/*.json;kEnSources"
+              "ru/sheets/*.json;kRuTranslation" "ru/sources/*.json;kRuSources" "ru/font/*.glyphs.z;kRuFont")
     list(GET embed 0 pattern)
     list(GET embed 1 symbol)
-    file(GLOB inputs CONFIGURE_DEPENDS ${REPO}/localization/pt-BR/${pattern})
+    file(GLOB inputs CONFIGURE_DEPENDS ${REPO}/localization/${pattern})
     list(SORT inputs)
     file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/generated/${symbol}.txt CONTENT "${inputs}")
     add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/generated/${symbol}.cpp

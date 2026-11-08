@@ -33,12 +33,12 @@ target_link_libraries(dcp_imgui_sdl PUBLIC SDL3::SDL3)
 # no window needed (tests link only this).
 find_package(ZLIB REQUIRED)
 add_library(dcp_launcher_core STATIC boot_image.cpp build_diagnostics.cpp build_scan.cpp build_scan_sites.cpp controller_prompts.cpp cpk_patch.cpp file_browser.cpp fms_sheet.cpp game_files.cpp
-    feature_sites.cpp game_install.cpp game_patches.cpp game_process.cpp game_profile.cpp game_translation.cpp header_art.cpp incident_report.cpp log_scrubber.cpp report_history.cpp online_client.cpp online_settings.cpp online_view.cpp npc_voice_resources.cpp options.cpp page_icons.cpp paths.cpp pkg_extract.cpp resolution.c resolution_probe.c settings.cpp text_languages.cpp trophy_content.cpp
+    feature_sites.cpp game_install.cpp game_patches.cpp game_process.cpp game_profile.cpp game_translation.cpp header_art.cpp incident_report.cpp latin_font.cpp cyrillic_font.cpp ${PROJECT_SOURCE_DIR}/src/latin_glyphs.c ${PROJECT_SOURCE_DIR}/src/cyrillic_glyphs.c log_scrubber.cpp report_history.cpp online_client.cpp online_settings.cpp online_view.cpp npc_voice_resources.cpp options.cpp page_icons.cpp paths.cpp pkg_extract.cpp resolution.c resolution_probe.c settings.cpp text_languages.cpp trophy_content.cpp
     ${PROJECT_SOURCE_DIR}/src/trophies/trophy_data.cpp ${PROJECT_SOURCE_DIR}/src/trophies/trophy_key.cpp ${PROJECT_SOURCE_DIR}/src/trophies/trophy_pack.cpp
     ${PROJECT_SOURCE_DIR}/src/trophies/trophy_runtime.cpp ${PROJECT_SOURCE_DIR}/src/trophies/trophy_service.cpp
     ${PROJECT_SOURCE_DIR}/src/trophies/trophy_store.cpp ${PROJECT_SOURCE_DIR}/src/trophies/trophy_view.cpp
     ${PROJECT_SOURCE_DIR}/src/trophies/trp_archive.cpp
-    ${PROJECT_SOURCE_DIR}/src/skip_intro.c ${PROJECT_SOURCE_DIR}/src/gallery_unlock.c ${PROJECT_SOURCE_DIR}/src/menu_buttons.c
+    ${PROJECT_SOURCE_DIR}/src/skip_intro.c ${PROJECT_SOURCE_DIR}/src/gallery_unlock.c ${PROJECT_SOURCE_DIR}/src/default_message_hook.c ${PROJECT_SOURCE_DIR}/src/menu_buttons.c
     ${PROJECT_SOURCE_DIR}/src/guest_hook.c)
 target_include_directories(dcp_launcher_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(dcp_launcher_core PUBLIC trg_core SDL3::SDL3 dcp_ui_text dcp_keys dcp_net dcp_startup_phase PRIVATE ZLIB::ZLIB)
@@ -68,6 +68,63 @@ add_custom_command(OUTPUT ${DCP_PTBR_SOURCE}
     DEPENDS ${DCP_PTBR_LIST} ${DCP_PTBR_SHEETS} ${CMAKE_CURRENT_SOURCE_DIR}/embed_files.cmake
     COMMENT "Embedding the pt-BR translation")
 target_sources(dcp_launcher_core PRIVATE ${DCP_PTBR_SOURCE})
+
+# The source record hashes of the slots PT-BR maps by index (localization/pt-BR/sources/*.json), game_translation.h.
+file(GLOB DCP_PTBR_SOURCE_MAPS CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/localization/pt-BR/sources/*.json)
+list(SORT DCP_PTBR_SOURCE_MAPS)
+set(DCP_PTBR_SOURCE_MAP_LIST ${CMAKE_BINARY_DIR}/generated/ptbr_sources.txt)
+file(CONFIGURE OUTPUT ${DCP_PTBR_SOURCE_MAP_LIST} CONTENT "${DCP_PTBR_SOURCE_MAPS}")
+set(DCP_PTBR_SOURCE_MAP_SOURCE ${CMAKE_BINARY_DIR}/generated/ptbr_source_maps.cpp)
+add_custom_command(OUTPUT ${DCP_PTBR_SOURCE_MAP_SOURCE}
+    COMMAND ${CMAKE_COMMAND} -DINPUT_LIST=${DCP_PTBR_SOURCE_MAP_LIST} -DOUTPUT=${DCP_PTBR_SOURCE_MAP_SOURCE}
+            -DSYMBOL=kPtBrSources -P ${CMAKE_CURRENT_SOURCE_DIR}/embed_files.cmake
+    DEPENDS ${DCP_PTBR_SOURCE_MAP_LIST} ${DCP_PTBR_SOURCE_MAPS} ${CMAKE_CURRENT_SOURCE_DIR}/embed_files.cmake
+    COMMENT "Embedding the pt-BR source maps")
+target_sources(dcp_launcher_core PRIVATE ${DCP_PTBR_SOURCE_MAP_SOURCE})
+
+# The English translation (localization/en/sheets/*.json) as a table of byte arrays, game_translation.h.
+file(GLOB DCP_EN_SHEETS CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/localization/en/sheets/*.json)
+list(SORT DCP_EN_SHEETS)
+set(DCP_EN_SHEET_LIST ${CMAKE_BINARY_DIR}/generated/en_sheets.txt)
+file(CONFIGURE OUTPUT ${DCP_EN_SHEET_LIST} CONTENT "${DCP_EN_SHEETS}")
+set(DCP_EN_SHEET_SOURCE ${CMAKE_BINARY_DIR}/generated/en_translation_data.cpp)
+add_custom_command(OUTPUT ${DCP_EN_SHEET_SOURCE}
+    COMMAND ${CMAKE_COMMAND} -DINPUT_LIST=${DCP_EN_SHEET_LIST} -DOUTPUT=${DCP_EN_SHEET_SOURCE} -DSYMBOL=kEnTranslation
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/embed_files.cmake
+    DEPENDS ${DCP_EN_SHEET_LIST} ${DCP_EN_SHEETS} ${CMAKE_CURRENT_SOURCE_DIR}/embed_files.cmake
+    COMMENT "Embedding the English translation")
+target_sources(dcp_launcher_core PRIVATE ${DCP_EN_SHEET_SOURCE})
+
+# The English record hashes and slot maps (localization/en/sources/*.json), game_translation.h.
+file(GLOB DCP_EN_SOURCE_MAPS CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/localization/en/sources/*.json)
+list(SORT DCP_EN_SOURCE_MAPS)
+set(DCP_EN_SOURCE_MAP_LIST ${CMAKE_BINARY_DIR}/generated/en_sources.txt)
+file(CONFIGURE OUTPUT ${DCP_EN_SOURCE_MAP_LIST} CONTENT "${DCP_EN_SOURCE_MAPS}")
+set(DCP_EN_SOURCE_MAP_SOURCE ${CMAKE_BINARY_DIR}/generated/en_source_maps.cpp)
+add_custom_command(OUTPUT ${DCP_EN_SOURCE_MAP_SOURCE}
+    COMMAND ${CMAKE_COMMAND} -DINPUT_LIST=${DCP_EN_SOURCE_MAP_LIST} -DOUTPUT=${DCP_EN_SOURCE_MAP_SOURCE}
+            -DSYMBOL=kEnSources -P ${CMAKE_CURRENT_SOURCE_DIR}/embed_files.cmake
+    DEPENDS ${DCP_EN_SOURCE_MAP_LIST} ${DCP_EN_SOURCE_MAPS} ${CMAKE_CURRENT_SOURCE_DIR}/embed_files.cmake
+    COMMENT "Embedding the English source maps")
+target_sources(dcp_launcher_core PRIVATE ${DCP_EN_SOURCE_MAP_SOURCE})
+
+# The Russian translation (localization/ru): its sheets, its slot map deltas and its letters, game_translation.h.
+function(dcp_embed_folder SYMBOL NAME PATTERN)
+    file(GLOB files CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/${PATTERN})
+    list(SORT files)
+    set(list_file ${CMAKE_BINARY_DIR}/generated/${NAME}.txt)
+    file(CONFIGURE OUTPUT ${list_file} CONTENT "${files}")
+    set(source ${CMAKE_BINARY_DIR}/generated/${NAME}_data.cpp)
+    add_custom_command(OUTPUT ${source}
+        COMMAND ${CMAKE_COMMAND} -DINPUT_LIST=${list_file} -DOUTPUT=${source} -DSYMBOL=${SYMBOL}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/embed_files.cmake
+        DEPENDS ${list_file} ${files} ${CMAKE_CURRENT_SOURCE_DIR}/embed_files.cmake
+        COMMENT "Embedding ${PATTERN}")
+    target_sources(dcp_launcher_core PRIVATE ${source})
+endfunction()
+dcp_embed_folder(kRuTranslation ru_sheets localization/ru/sheets/*.json)
+dcp_embed_folder(kRuSources ru_sources localization/ru/sources/*.json)
+dcp_embed_folder(kRuFont ru_font localization/ru/font/*.glyphs.z)
 
 # The PT-BR visual patches (localization/pt-BR/visual/*.dcpx.z) as a table of byte arrays, game_translation.h.
 file(GLOB DCP_PTBR_VISUAL_PATCHES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/localization/pt-BR/visual/*.dcpx.z)
@@ -161,7 +218,7 @@ set_target_properties(dcp-launcher-shots PROPERTIES CXX_STANDARD 20 CXX_STANDARD
 # Focused tests with synthetic data and temporary folders (tools\test.ps1); not part of the default build.
 find_package(PNG REQUIRED)
 add_executable(dcp-launcher-tests EXCLUDE_FROM_ALL ../tests/launcher_tests.cpp ${DCP_LOG_SOURCES}
-    ../gpu/shim/dcp_settings.cpp ../gpu/shim/dcp_png.cpp)
+    ../gpu/shim/dcp_settings.cpp ../gpu/shim/dcp_png.cpp ${PROJECT_SOURCE_DIR}/src/exit_game_text.c)
 target_compile_definitions(dcp-launcher-tests PRIVATE DCP_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(dcp-launcher-tests PRIVATE dcp_launcher_core PNG::PNG)
 target_include_directories(dcp-launcher-tests PRIVATE ${PROJECT_SOURCE_DIR}/gpu/shim)
@@ -189,6 +246,19 @@ if (WIN32)
 endif()
 set_target_properties(dcp-update-tests PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 target_compile_options(dcp-update-tests PRIVATE -Wall -Wextra)
+
+# Update failures against a scripted loopback HTTP server: 504, dropped connections, stalls, redirects and retries.
+add_executable(dcp-update-network-tests EXCLUDE_FROM_ALL ../tests/update_network_tests.cpp
+    updater/github_release.cpp updater/install_transaction.cpp updater/json.cpp updater/sha256.cpp
+    updater/update_controller.cpp updater/update_job.cpp updater/update_paths.cpp updater/update_platform.cpp
+    updater/update_zip.cpp updater/version.cpp updater/third_party/miniz/miniz.c)
+target_include_directories(dcp-update-network-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(dcp-update-network-tests PRIVATE trg_core)
+if (WIN32)
+    target_link_libraries(dcp-update-network-tests PRIVATE shell32 ws2_32)
+endif()
+set_target_properties(dcp-update-network-tests PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+target_compile_options(dcp-update-network-tests PRIVATE -Wall -Wextra)
 
 # Focused tests of the Bug Report page's logic, on synthetic logs in temporary folders: no window, no network.
 add_executable(dcp-incident-tests EXCLUDE_FROM_ALL ../tests/incident_tests.cpp)

@@ -318,10 +318,18 @@ net::Endpoint GameEndpoint(uint16_t member, const Signal& s) {
 std::mutex g_relay_mutex;
 net::LobbyLink* g_relay_link = nullptr;
 std::shared_ptr<net::PeerSocket> g_relay_socket;
+// While the lobby link reconnects, the seat is not ours again until room.resume answers: the lobby would count frames
+// sent before that as faults of a sender with no room. The link layer retransmits what is refused here.
+bool g_relay_paused = false;
 
 bool SendRelayFrame(std::vector<uint8_t>&& frame) {
     std::lock_guard<std::mutex> lock(g_relay_mutex);
-    return g_relay_link && g_relay_link->send_binary(std::move(frame));
+    return g_relay_link && !g_relay_paused && g_relay_link->send_binary(std::move(frame));
+}
+
+void PauseRelay(bool paused) {
+    std::lock_guard<std::mutex> lock(g_relay_mutex);
+    g_relay_paused = paused;
 }
 
 void ReceiveRelayFrame(const uint8_t* data, size_t size) {
@@ -337,6 +345,7 @@ void SetRelayEnds(net::LobbyLink* link, const std::shared_ptr<net::PeerSocket>& 
     std::lock_guard<std::mutex> lock(g_relay_mutex);
     g_relay_link = link;
     g_relay_socket = socket;
+    g_relay_paused = false;
 }
 
 void ConfigureRelay() {
@@ -594,6 +603,7 @@ void OnResponse(const net::LobbyMessage& m) {
             std::printf("Matching2: seat lost after the reconnect (%s)\n", m.code.c_str());
             RoomGone(kRoomDestroyed);
         }
+        PauseRelay(false);
         g.lost = false;
         g.reported_port = 0;
         g.udp_acked = false;
@@ -753,6 +763,7 @@ void OnLink(const net::LobbyMessage& m) {
     } else if (m.kind == K::kLost) {
         g.lost = true;
         g.udp_inflight = false;
+        PauseRelay(true);
         std::printf("Matching2: lobby connection lost; the game is not told while it reconnects\n");
     } else if (m.kind == K::kBack) {
         NoteRelayCapability(m.body);
@@ -765,12 +776,14 @@ void OnLink(const net::LobbyMessage& m) {
             const uint32_t seq = g.link->request("room.resume", std::move(body), true);
             g.pending[seq] = Pending{Kind::kResume, 0, nullptr, nullptr, 0};
         } else {
+            PauseRelay(false);
             g.lost = false;
             g.reported_port = 0;
             g.presence_sent = "-";
             g.link->release_held();
         }
     } else if (m.kind == K::kDown) {
+        PauseRelay(false);
         const bool was_up = g.up;
         g.relay_capable = false;
         ConfigureRelay();

@@ -2,7 +2,7 @@
 
 This branch runs Dragon's Crown Pro on arm64 Android phones with the same loader, runtime and Vulkan renderer as the
 PC port. The game's x86-64 code runs in an embedded [Box64](https://github.com/ptitSeb/box64) core
-(`src/guest_cpu_box64.c`); everything else is the PC code, built for Android. It is based on upstream v1.0.0 and plays
+(`src/guest_cpu_box64.c`); everything else is the PC code, built for Android. It is based on upstream v1.1.1 and plays
 online with PC players on the same online service.
 
 You need your own copy of the game, installed with the PC launcher. Nothing here contains or downloads game files.
@@ -62,7 +62,7 @@ The app looks in its internal files folder first, then in `Android/data/dev.dcpp
 Useful `dcp.ini` settings on Android:
 
 - `render_resolution`: `720p` by default; `native`, `480p` and the PC values also work.
-- `text_language=pt-BR`: Brazilian Portuguese text on the USA 1.00 build.
+- `text_language`: `brazilian_portuguese` or `russian`, as well as the build's own languages.
 - `online_enabled=1`, `online_name=<name>`, `show_ping=1`: online play. The settings app sets these; there is no
   Connection test before playing.
 

@@ -6,7 +6,7 @@
 
 [![Android release](https://img.shields.io/github/v/release/Shmubbier/Dragons-crown-android?style=for-the-badge&label=android&color=3ddc84&labelColor=07101f&include_prereleases&cacheSeconds=300)](https://github.com/Shmubbier/Dragons-crown-android/releases)
 ![Platform](https://img.shields.io/badge/platform-Android%2013%2B%20arm64%20(experimental)-3ddc84?style=for-the-badge&labelColor=07101f)
-[![Upstream](https://img.shields.io/badge/based%20on-PC%20port%20v1.0.0-e0bb32?style=for-the-badge&labelColor=07101f)](https://github.com/saulob/dragons-crown-pro-pc)
+[![Upstream](https://img.shields.io/badge/based%20on-PC%20port%20v1.1.1-e0bb32?style=for-the-badge&labelColor=07101f)](https://github.com/saulob/dragons-crown-pro-pc)
 
 <sub>This is a fork of <a href="https://github.com/saulob/dragons-crown-pro-pc">saulob/dragons-crown-pro-pc</a>. The PC port's loader, runtime and Vulkan renderer are built for Android, and the game's own x86-64 code runs in an embedded <a href="https://github.com/ptitSeb/box64">Box64</a> core. <b>No game files included</b>: bring your own legally obtained Dragon's Crown Pro PS4 package.</sub>
 
@@ -36,7 +36,7 @@
 
 - **Graphics**: render resolution (720p is the Android default), aspect ratio, SMAA, texture filtering, FSR 1 upscaling and RCAS sharpening
 - **Experimental True Ultrawide** for 21:9 and 32:9 (not yet tried on a phone)
-- **Gameplay**: Menu & Subtitles language (including Brazilian Portuguese on the USA 1.00 build), frame rate limit, frame counter, Story and Tutorial Skip Offers, **Skip Intro** and **Unlock Gallery**, plus **Japanese NPC Voices** (not yet tried on a phone)
+- **Gameplay**: Menu & Subtitles language (including Brazilian Portuguese and the Russian fan translation), frame rate limit, frame counter, Story and Tutorial Skip Offers, **Skip Intro** and **Unlock Gallery**, plus **Japanese NPC Voices** (not yet tried on a phone)
 - **Title menu with Exit Game**
 - **Japanese Menu Buttons** (Circle confirms)
 - **Online**: online name, ping display and the public lobby. Cheats are locked while online play is on, as on PC

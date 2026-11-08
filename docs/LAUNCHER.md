@@ -81,7 +81,7 @@ while the game files are not valid. If its window cannot be opened, the game sta
 
 1. `sce_sys\param.sfo` names a supported build: `TITLE_ID`, `CONTENT_ID`, `APP_VER` and `VERSION` of the finished game
    (the builds listed in `launcher/game_profile.cpp`, each identified by its finished game). The build is logged with its
-   regional archive, or `none`.
+   language archive: where the build's Menu & Subtitles sheets are, `DRACRO.CPK` for Japan.
 2. `game\prepared\<build>\.dcp_view.json`: the build's version and scope `full` (written last by the installer, or by
    `prepare_game.py`).
 3. The shared files, the build's regional archive (`DRACRO_US.CPK`, `DRACRO_PATCH_JP.CPK`, `DRACRO_CK.CPK` or `DRACRO_EU.CPK`, none for
@@ -99,8 +99,8 @@ into `CUSA10454-1.01`. The two builds have different `eboot.bin` files. An updat
 the launcher says so otherwise. The 1.01 install keeps the base game's English, French, German, Italian and Spanish
 menu and subtitle resources: its `DRACRO_US.CPK` is the 1.00 archive with the update's entries outside the language
 sets laid over it, so the 1.00 folder is never changed. The update's own archive holds Russian text in its US slot
-(and has no Russian slot); that text is not installed, so English stays English and Russian is not a language of this
-build. A 1.01 folder installed by an older launcher keeps that text until the update is installed again.
+(and has no Russian slot); that text is not installed, so English stays English. Russian is the port's built-in
+translation, served over the English slot. A 1.01 folder installed by an older launcher keeps that text until the update is installed again.
 
 **Japanese builds.** The base package (`drcpro.pkg`, CATEGORY `gd`, APP_VER 01.00) is a complete game: it is installed
 into `CUSA07001-1.00`. The 1.02 and 1.03 updates (CATEGORY `gp`) are each laid over
@@ -131,7 +131,7 @@ Japanese builds, whose NPCs already speak Japanese:
 
 | Feature | USA 1.00 | USA 1.01 | Japan 1.00, 1.02, 1.03 | Asia/HK 1.00 | Asia/HK 1.02 | Europe 1.03 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Menu & Subtitles | 5 Western | 5 Western | Japanese | Chinese, Korean | Chinese, Korean | 5 Western |
+| Menu & Subtitles | 5 Western | 5 Western | Japanese, English (port) | Chinese, Korean, English (port) | Chinese, Korean, English (port) | 5 Western |
 | Render resolution, Aspect Ratio | yes | yes (sites found by signature) | yes | yes | yes (sites found by signature) | yes (sites found by signature) |
 | True Ultrawide | yes | yes (found by signature) | yes (found by signature) | yes (found by signature) | yes (found by signature) | yes (found by signature) |
 | Story and Tutorial Skip Offers | yes | yes (found by signature) | yes | yes | yes (found by signature) | yes (found by signature) |
@@ -281,10 +281,10 @@ vertex descriptor validation and the 10% stick dead zone are not exposed.
 ## Display
 
 - **Display mode**: Windowed or Borderless Fullscreen (SDL desktop fullscreen, no display mode change).
-- **Window size**: 1280 × 720, 1600 × 900, 1920 × 1080 (the game's own size), 2560 × 1440, 3840 × 2160, in pixels, listed
-  when they fit the selected monitor's usable area with the title bar; the current value is shown. A size that
-  does not fit when the game opens is reduced keeping its shape, so that the whole window, title bar included, takes at
-  most 80% of the monitor's usable area, and the window opens centred there. This is applied at start only: the saved
+- **Window size**: 1280 × 720, 1600 × 900, 1920 × 1080 (the game's own size), 2560 × 1440, 3840 × 2160, in pixels, always
+  all listed, whatever the monitor; the saved value is exactly the one chosen. A size that
+  does not fit when the game opens is reduced keeping its shape until the whole window, title bar included, fits the
+  monitor's usable area; a size that fits opens unchanged. The window opens centred there. This is applied at start only: the saved
   Window size is not changed, and a window you resize afterwards is left alone. The picture keeps its shape and is
   letterboxed or pillarboxed in the window. The listed sizes (heights 720, 900, 1080, 1440, 2160) follow the Aspect Ratio.
 - **Aspect Ratio**: 16:9 Original, 16:10, 21:9 Ultrawide, 32:9 Super Ultrawide, 4:3, 5:4 (`aspect_ratio` in `dcp.ini`;
@@ -389,24 +389,81 @@ nothing). The frame rate is on the Gameplay page. There is no Performance page. 
 
   | Build | Languages |
   | --- | --- |
-  | CUSA10454 1.00 USA | English, French, German, Italian, Portuguese (Brazil), Spanish (`english`, `french`, `german`, `italian`, `brazilian_portuguese`, `spanish`) |
-  | CUSA10454 1.01 USA | English, French, German, Italian, Spanish: as 1.00 without Portuguese (Brazil) |
-  | CUSA07001 1.00, 1.02, 1.03 Japan | Japanese (`japanese`): the executable does not read the system language |
-  | CUSA10209 1.00, 1.02 Asia/Hong Kong | Traditional Chinese, Korean (`traditional_chinese`, `korean`) |
-  | CUSA10487 1.03 Europe | English, French, German, Italian, Spanish (`english`, `french`, `german`, `italian`, `spanish`) |
+  | CUSA10454 1.00, 1.01 USA | English, French, German, Italian, Portuguese (Brazil), Russian, Spanish (`english`, `french`, `german`, `italian`, `brazilian_portuguese`, `russian`, `spanish`) |
+  | CUSA07001 1.00, 1.02, 1.03 Japan | Japanese, English, Portuguese (Brazil), Russian (`japanese`, `english`, `brazilian_portuguese`, `russian`): the executable does not read the system language |
+  | CUSA10209 1.00, 1.02 Asia/Hong Kong | Traditional Chinese, Korean, English, Portuguese (Brazil), Russian (`traditional_chinese`, `korean`, `english`, `brazilian_portuguese`, `russian`) |
+  | CUSA10487 1.03 Europe | English, French, German, Italian, Portuguese (Brazil), Russian, Spanish (`english`, `french`, `german`, `italian`, `brazilian_portuguese`, `russian`, `spanish`) |
 
-  Portuguese (Brazil) is the port's own translation of the English slot, for CUSA10454 1.00 USA only (not 1.01 or the
-  Japanese, Asia/Hong Kong or European builds). It covers the game text, the launcher, the F1 options, the F10 overlay,
-  the online screens and runtime visual replacements; the installed archive is never written. Still English: the
-  DefaultBone dialogue, trophy text, some baked visual labels and the credits. See `localization/pt-BR/README.md`.
+  Portuguese (Brazil) is the port's own translation, not a language of the game, so it is offered on every supported
+  build and a saved choice survives switching builds. The game runs in a native slot and the port serves translated
+  copies of that slot's sheets when the game reads them; the installed archive is never written:
+
+  | Builds | Slot | Archive | Sheets |
+  | --- | --- | --- | --- |
+  | CUSA10454 1.00, 1.01 | English | `DRACRO_US.CPK` | checked against the corpus's English hashes |
+  | CUSA10487 1.03 | English | `DRACRO_EU.CPK` | checked against the corpus's English hashes |
+  | CUSA07001 1.00, 1.02, 1.03 | Japanese | `DRACRO.CPK` | matched by record index, `localization/pt-BR/sources/JP.json` |
+  | CUSA10209 1.00, 1.02 | Traditional Chinese | `DRACRO_CK.CPK` | matched by record index, `localization/pt-BR/sources/CT.json` |
+
+  It covers the game text, the launcher, the F1 options, the F10 overlay and the online screens. Text the port has no
+  translation of stays in the slot's language: trophy text and the credits are the build's own.
+
+  The DefaultBone character messages are translated too. While a character is being created, an empty message row
+  shows the default it will receive (src/default_message_hook.c): the variant previewed for a class is held and given
+  to the game's one pick when the character is added, so the saved text is the previewed one. The guest's random
+  number is still drawn once, nothing is written before the character is added, and characters already in a save
+  keep the messages they have. Other languages keep the game's own "no message" row.
+
+  The released image labels (PONTOS, VAI!, RANKS DE TESOURO, ENTRE, CARREGANDO, SALVANDO, SIM, NÃO, DADOS, NOVO and the
+  copyright line) reach every build. The USA packs draw them from `*_Add` atlases; the Japanese and Asia/Hong Kong
+  builds read the base `stage/Interface` and `stage/title` files of `DRACRO.CPK`, which have no such atlases, so
+  `base-*.dcpx.z` puts the same art into the sprites those files draw (NOW + LOADING becomes CARREGANDO) and moves their
+  quads. In Asia/Hong Kong the text is in `DRACRO_CK.CPK` and the stage files in `DRACRO.CPK`, so two archives are
+  overlaid. The manual stays the build's own on those builds: their pages are other images, and most of a page would
+  have to be shipped. A visual whose installed file is not a known source is left as it is, and the log says so
+  (`PT-BR visual skipped: stage/Interface.ftx: source fingerprint not recognized`); the others still apply.
+
+  The Japanese and Asia/Hong Kong fonts have no accented letters, and their executables list none that the font draws.
+  When Portuguese (Brazil) is selected there, `launcher/latin_font.cpp` draws the letters into free atlas cells of a
+  copy of the installed font, from its base letters and marks made from `DRACRO.CPK`'s punctuation, and
+  `src/latin_glyphs.c` adds them to the executable's glyph table in memory. If that cannot be done the text is shown
+  without accents and the log says why. The Japanese and Asia/Hong Kong marks are composed on the player's machine;
+  nothing of the game is stored by the port.
+
+  Records of a slot that cannot take the translation safely stay in that slot's language and are counted in the log
+  (`Menu & Subtitles: ... kept in the game's own language`); the rest of the sheet is translated. See
+  `localization/pt-BR/README.md`.
+
+  English on the Japanese and Asia/Hong Kong builds is provided by the PC port; the PS4 releases have none. The port
+  ships the game's English text as its own corpus (`localization/en/sheets`, embedded at build time) and serves it over
+  the Japanese slot or the Traditional Chinese one, like Portuguese (Brazil): the same `english` key plays native English
+  on the USA and European builds and the built-in English on the others. A record that cannot map safely keeps the
+  slot's own text, as does one whose English uses a character the slot never shows (Japan 11,970 and Asia/Hong Kong
+  1.00 11,686 of 11,992 records). No other game or setup is needed. English uses the regional font as it is (no composed
+  letters) and no visual patch: the regional labels (NOW LOADING, YES, NO...) are already English. Exit Game and the
+  DefaultBone character messages follow the served text. See `localization/en/README.md`.
+
+  Russian is the fan translation by Exclusive Studio, with PS4 porting work by AlchemistLab
+  (https://ex-s.ru/dc.html), built into the port from `localization/ru`; no fan package is needed. It is served over
+  the same slot as Portuguese (Brazil) and uses the English and Portuguese record maps on the Japanese and Asia/Hong Kong
+  builds, plus a small delta of its own (USA 9,946, Japan 9,926 and Asia/Hong Kong 1.00 9,791 of 9,946 records). A
+  record whose printf conversions or buttons differ from the slot's keeps the slot's text; tags and colours may differ,
+  as the fan text writes some tag values out. No regional font has Cyrillic, so `launcher/cyrillic_font.cpp` copies the
+  fan font's 66 letters into a copy of the installed font and `src/cyrillic_glyphs.c` lists them in the executable's
+  glyph table: on the USA and European builds over the kana cells the fan package uses, with the text written as those
+  kana, and on the Japanese and Asia/Hong Kong builds as Unicode in blank cells after the Portuguese letters. When the
+  table or the font cannot take them, Russian is not served and the log says why
+  (`Menu & Subtitles: Russian unavailable (...)`). The character messages are drawn by the system font, whose OpenType
+  fonts have Cyrillic in every region. The launcher, the F1 options, the F10 overlay and the online screens stay in
+  English: the fan translation has no text for them. Exit Game shows `Выйти`. See `localization/ru/README.md`.
 
   For the USA, Asia/Hong Kong and European builds the list is read from the installed regional archive (`DRACRO_US.CPK`,
   `DRACRO_CK.CPK`, `DRACRO_EU.CPK`): a language is offered only when the archive holds its set of message sheets and stage files. Russian
-  is never offered: the 1.01 update's archive has no Russian slot, only Russian text in its US slot, which the install
-  does not take over (see USA builds). `DRACRO_EU.CPK` has a UK slot beside the US one, as `DRACRO_US.CPK` does; it is
+  is offered wherever the native slot is complete, like Portuguese (Brazil); the 1.01 update's own Russian text in its
+  US slot is not taken over (see USA builds). `DRACRO_EU.CPK` has a UK slot beside the US one, as `DRACRO_US.CPK` does; it is
   not offered as a separate language. When the archive cannot be read or holds no set, the build's list stands. Korean is not yet tested in game. A saved
   language the installed game does not have is replaced by its first one, and the log says so
-  (`Settings: saved language English unavailable for this build, using Japanese`). An explicit `DCP_LANGUAGE`
+  (`Settings: saved language Korean unavailable for this build, using Japanese`). An explicit `DCP_LANGUAGE`
   environment variable (a PS4 language number) overrides it. Voices are chosen inside the game.
 - **Japanese NPC Voices**: Off by default (`dcp_japanese_npc_voices`). USA, Asia and Hong Kong and European builds; on the builds
   whose hooks are found by signature the option appears only while the installed `DRACRO.CPK` holds the sound table and
@@ -613,12 +670,23 @@ scrollbar, and has four steps:
 5. **My reports** lists the reports this PC sent, newest first, from `user/bug_reports.json` (`launcher/report_history.cpp`, saved
    through a new file moved into place; a damaged file is set aside as `.damaged`). Each row shows the report ID, a preview, the
    status (with the fixed version on a Fixed report) and the date. **View details** expands that report in place, as one framed
-   item that holds its summary, its facts (status, fixed version, the developer's message), **What was sent**, which reads the stored
-   report back, and **Remove from this PC**, which deletes only the local entry. Only one report is open at a time, and **Hide details**
-   closes it. **Refresh** sits at the top right of the section.
+   item that holds its summary, the developer's message when there is one, its facts (status, fixed version), **What was sent**,
+   which reads the stored report back, and **Remove from this PC**, which deletes only the local entry. Only one report is open at a
+   time, and **Hide details** closes it. **Refresh** sits at the top right of the section.
    The statuses are checked at startup, when the page opens and on **Refresh**, off the UI thread and silently when offline. A
-   change marks the report **Updated** and puts a dot on the sidebar entry, until the report is opened. If the list cannot be saved
-   the report still counts as sent: the Report ID shows normally with a short note.
+   change marks the report **Updated** and puts a dot on the sidebar entry, until that report is opened. Opening the page
+   does not clear anything: each report clears when it is opened. If the list cannot be saved the report still counts as sent:
+   the Report ID shows normally with a short note.
+   A new or changed developer message is a **new reply**, kept as `message_unseen` in `bug_reports.json` (an older file without
+   it loads safely: an unseen report with a message counts as a reply). A reply shows a **New reply** marker in its row and a
+   banner at the top of the page, "A report has a new reply", which comes before the plain "A report has an update". **Show**
+   opens the report with an unseen reply, otherwise the most recently updated one, and the next unread report can then take the
+   banner. The message sits in its own highlighted panel, **Message from developer**, apart from the status, with a **New reply**
+   badge until the report is closed. A status with no message is only an update.
+   A report the service no longer has (the admin deleted it) is marked `unavailable`: its row says **No longer available**, its
+   details keep the last known status and message and say it was removed, it is never shown as an update, and it is left out of
+   the automatic checks. **Refresh** asks about it again, and the mark clears if the service answers. **Remove from this PC**
+   deletes the local entry as before.
 
 The request and the privacy rules are in [ONLINE.md](ONLINE.md#bug-reports). Online Play does not have to be on.
 

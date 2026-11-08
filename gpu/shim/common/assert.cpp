@@ -5,13 +5,17 @@
 #include "common/assert.h"
 #include "common/logging/log.h"
 
+#ifdef __ANDROID__
 extern "C" void runtime_log_flush(void);
+#endif
 
 void assert_fail_impl() {
     std::fflush(stdout);
     std::fputs("STOP: GPU library assertion failed (see GPU log above)\n", stderr);
+#ifdef __ANDROID__
     // The runtime log captures stdout/stderr; drain it so the assertion and its message reach the log file.
     runtime_log_flush();
+#endif
     std::_Exit(23);
 }
 

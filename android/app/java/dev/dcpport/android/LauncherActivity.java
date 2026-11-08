@@ -230,7 +230,7 @@ public class LauncherActivity extends Activity {
         list.addView(choice("Menu & Subtitles", "The language of the menus and subtitles. Voices are chosen in the game.",
                 "text_language", "english",
                 new String[][] {{"english", "English"}, {"french", "French"}, {"german", "German"},
-                        {"italian", "Italian"}, {"brazilian_portuguese", "Portuguese (Brazil)"},
+                        {"italian", "Italian"}, {"brazilian_portuguese", "Portuguese (Brazil)"}, {"russian", "Russian"},
                         {"spanish", "Spanish"}}));
         list.addView(divider());
         list.addView(toggle("Japanese NPC Voices", "Use Japanese voices for NPC dialogue.", "dcp_japanese_npc_voices",

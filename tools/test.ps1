@@ -180,6 +180,7 @@ $tests = @(
     (Test-Step 'frame pacing tests (Frame rate setting, repeat cadence, limiter)' 'dcp-frame-pacing-tests'),
     (Test-Step 'Options menu tests (chord, close gate, live and restart settings, dcp.ini, Online Play lock)' 'dcp-options-menu-tests'),
     (Test-Step 'AMD water workaround tests (vendor defaults, no hotkey)' 'dcp-amd-water-tests'),
+    (Test-Step 'pipeline cache tests (seal, identity, warm-up mode, recovery, build gate)' 'dcp-pipeline-cache-tests'),
     (Test-Step 'water diagnostics tests (AMD only, deduplication, cap)' 'dcp-water-diag-tests'),
     (Test-Step 'narrow water reader tests (16:10 skip, 16:9 and ultrawide untouched, signature)' 'dcp-narrow-water-reader-tests'),
     (Test-Step 'save-data tests (mounts, Japanese startup save hook)' 'dcp-savedata-tests' -Parity),
@@ -190,11 +191,13 @@ $tests = @(
     (Test-Step 'OpenGL fast path tests (write watch with real faults, state tracker, stream ring, no context)' 'dcp-opengl-perf-tests'),
     (Test-Step 'ANGLE dependency tests (pin, cache, extraction, DLL staging, package checks, no network)' -Script 'tests\angle_dependency_tests.ps1'),
     (Test-Step 'updater tests' 'dcp-update-tests'),
+    (Test-Step 'updater network tests (504, dropped connections, stalls, redirects, retries on a loopback server)' 'dcp-update-network-tests'),
     (Test-Step 'updater helper tests' 'dcp-update-helper-tests'),
     (Test-Step 'RTC tests (Win32 file time)' 'dcp-rtc-tests'),
     (Test-Step 'Skip Offer tests (synthetic and local boot images)' 'dcp-skip-offers-tests' -Parity),
     (Test-Step 'Skip Intro tests (synthetic and local boot images)' 'dcp-skip-intro-tests' -Parity),
     (Test-Step 'Unlock Gallery tests (view, save safety, synthetic and local boot images)' 'dcp-gallery-unlock-tests' -Parity),
+    (Test-Step 'Default message preview tests (records, preview, commit pin, synthetic and local boot images)' 'dcp-default-message-tests' -Parity),
     (Test-Step 'Japanese Menu Buttons tests (synthetic and local boot images)' 'dcp-menu-buttons-tests' -Parity),
     (Test-Step 'Exit Game tests (title text, four-row menu hooks, install checks)' 'dcp-exit-game-tests'),
     (Test-Step 'Title layout tests (four-row art patch, synthetic layouts)' 'dcp-title-layout-tests'),
@@ -223,7 +226,7 @@ Sync-GpuDependencies
 Write-Step 'Building the focused tests'
 # The launcher tests read compiled-in icons and sources: a leftover executable must never be the one that runs.
 Remove-Item -LiteralPath (Join-Path $buildDir 'bin\dcp-launcher-tests.exe') -Force -ErrorAction SilentlyContinue
-& ninja -C $buildDir dcp-memory-windows-tests dcp-launcher-tests dcp-runtime-overlay-tests dcp-discord-tests dcp-pad-slots-tests dcp-build-diagnostics-tests dcp-build-parity-tests dcp-feature-sites-tests dcp-trophy-tests dcp-incident-tests dcp-cheats-tests dcp-text-tests dcp-tiling-tests dcp-renderer-selection-tests dcp-opengl-backend-tests dcp-opengl-perf-tests dcp-cursor-tests dcp-window-tests dcp-sdl-compat-tests dcp-present-tests dcp-frame-pacing-tests dcp-options-menu-tests dcp-amd-water-tests dcp-water-diag-tests dcp-narrow-water-reader-tests dcp-savedata-tests dcp-voice-tests dcp-system-type-tests dcp-party-tests dcp-ultrawide-tests dcp-ultrawide-sides-tests dcp-isa-tests dcp-module-history-tests dcp-update-tests dcp-update-helper-tests dcp-log-tests dcp-net-tests dcp-online-hle-tests dcp-online-builds-tests dcp-skip-offers-tests dcp-skip-intro-tests dcp-gallery-unlock-tests dcp-menu-buttons-tests dcp-exit-game-tests dcp-title-layout-tests dcp-rtc-tests
+& ninja -C $buildDir dcp-memory-windows-tests dcp-launcher-tests dcp-runtime-overlay-tests dcp-pad-slots-tests dcp-discord-tests dcp-build-diagnostics-tests dcp-build-parity-tests dcp-default-message-tests dcp-feature-sites-tests dcp-trophy-tests dcp-incident-tests dcp-cheats-tests dcp-text-tests dcp-tiling-tests dcp-renderer-selection-tests dcp-opengl-backend-tests dcp-opengl-perf-tests dcp-cursor-tests dcp-window-tests dcp-sdl-compat-tests dcp-present-tests dcp-frame-pacing-tests dcp-options-menu-tests dcp-amd-water-tests dcp-pipeline-cache-tests dcp-water-diag-tests dcp-narrow-water-reader-tests dcp-savedata-tests dcp-voice-tests dcp-system-type-tests dcp-party-tests dcp-ultrawide-tests dcp-ultrawide-sides-tests dcp-isa-tests dcp-module-history-tests dcp-update-tests dcp-update-network-tests dcp-update-helper-tests dcp-log-tests dcp-net-tests dcp-online-hle-tests dcp-online-builds-tests dcp-skip-offers-tests dcp-skip-intro-tests dcp-gallery-unlock-tests dcp-menu-buttons-tests dcp-exit-game-tests dcp-title-layout-tests dcp-rtc-tests
 if ($LASTEXITCODE -ne 0) { Stop-Tool 'Test build failed' }
 foreach ($test in $tests) {
     if ($test.Exe -and -not (Test-Path -LiteralPath (Join-Path $buildDir "bin\$($test.Exe).exe"))) { Stop-Tool "$($test.Exe) is not built: add it to the ninja line above." }
@@ -245,6 +248,7 @@ try {
         $lobby = Start-DevLobby
         if ($lobby.Url) {
             $env:DCP_TEST_LOBBY = $lobby.Url
+            Write-Host "Online tests: Node $(& (Get-Node) --version) via $(Get-Node)"
             Write-Host "Development lobby ready at $($lobby.Url) (pid $($lobby.Process.Id)); DCP_TEST_LOBBY is set for every test below."
         } elseif ($lobby.Error) {
             $lobbyProblem = $lobby.Error
@@ -371,7 +375,7 @@ function Read-Groups([string[]]$Lines) {
     return $table
 }
 $net = Read-Groups $captured['dcp-net-tests']
-$netGroups = 'foundations', 'address-classification', 'endpoint-selection', 'connection-test', 'direct', 'relay-codec', 'relay-fallback', 'failure-paths', 'protocol', 'linux-parity', 'lobby-binary'
+$netGroups = 'foundations', 'address-classification', 'endpoint-selection', 'connection-test', 'direct', 'relay-codec', 'relay-fallback', 'failure-paths', 'transport-quality', 'protocol', 'linux-parity', 'lobby-binary'
 if ($captured.ContainsKey('dcp-net-tests')) {
     foreach ($group in $netGroups | Where-Object { -not $net.ContainsKey($_) }) { $net[$group] = 'FAIL' }
 }
@@ -433,6 +437,7 @@ $summary = [ordered]@{
     'Worker relay' = $(if ($workerState -eq 'SKIPPED') { "SKIPPED ($($skipped[$workerName]))" } else { $workerState })
     'Protocol compatibility' = $protocolSummary
     'Failure paths' = Group-Status $net @('failure-paths')
+    'Link quality and relay migration' = Group-Status $net @('transport-quality')
     'Connection test' = Group-Status $net @('connection-test')
     'Address classification' = Group-Status $net @('address-classification')
     'Endpoint selection' = Group-Status $net @('endpoint-selection')

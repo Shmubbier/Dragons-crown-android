@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(dragons_crown_pro_pc VERSION 1.0.0 LANGUAGES C CXX)
+project(dragons_crown_pro_pc VERSION 1.1.1 LANGUAGES C CXX)
 set(DCP_PORT_VERSION "${PROJECT_VERSION}")
 
 if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -79,6 +79,7 @@ set(DCP_RUNTIME_SOURCES
     src/exit_game_hook.c
     src/exit_game_text.c
     src/gallery_unlock.c
+    src/default_message_hook.c
     src/guest_hook.c
     src/title_layout.c
     src/runtime.c
@@ -202,6 +203,11 @@ add_executable(dcp-gallery-unlock-tests EXCLUDE_FROM_ALL tests/gallery_unlock_te
 target_include_directories(dcp-gallery-unlock-tests PRIVATE src)
 target_compile_definitions(dcp-gallery-unlock-tests PRIVATE DCP_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_compile_options(dcp-gallery-unlock-tests PRIVATE -Wall -Wextra -Werror)
+add_executable(dcp-default-message-tests EXCLUDE_FROM_ALL tests/default_message_tests.c src/default_message_hook.c src/guest_hook.c)
+target_include_directories(dcp-default-message-tests PRIVATE src)
+target_compile_definitions(dcp-default-message-tests PRIVATE DCP_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_compile_options(dcp-default-message-tests PRIVATE -Wall -Wextra -Werror)
+
 add_executable(dcp-menu-buttons-tests EXCLUDE_FROM_ALL tests/menu_buttons_tests.c src/menu_buttons.c)
 target_include_directories(dcp-menu-buttons-tests PRIVATE src)
 target_compile_definitions(dcp-menu-buttons-tests PRIVATE DCP_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
@@ -235,7 +241,7 @@ target_compile_options(dcp-cheats-tests PRIVATE -Wall -Wextra -fno-omit-frame-po
 
 # Focused tests of the text dialog and the system font set through the import resolver (tools/test.ps1,
 # tools/build.sh --test); not part of the default build.
-add_executable(dcp-text-tests EXCLUDE_FROM_ALL tests/text_tests.c src/runtime_cheats.cpp ${DCP_RUNTIME_SOURCES}
+add_executable(dcp-text-tests EXCLUDE_FROM_ALL tests/text_tests.c tests/composed_glyph_data.cpp src/runtime_cheats.cpp ${DCP_RUNTIME_SOURCES}
     $<$<BOOL:${WIN32}>:src/compat_win.c src/runtime_log.c> $<$<NOT:$<BOOL:${WIN32}>>:src/runtime_log_posix.c>)
 set_target_properties(dcp-text-tests PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 target_include_directories(dcp-text-tests PRIVATE src launcher ${CMAKE_BINARY_DIR}/generated)
@@ -387,6 +393,14 @@ target_include_directories(dcp-amd-water-tests PRIVATE gpu/shim)
 target_compile_definitions(dcp-amd-water-tests PRIVATE DCP_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_compile_options(dcp-amd-water-tests PRIVATE -Wall -Wextra -Werror)
 
+# Focused tests of the persistent pipeline cache rules (blob seal, identity, warm-up mode, failure handling, build gate,
+# atomic writes); not part of the default build.
+add_executable(dcp-pipeline-cache-tests EXCLUDE_FROM_ALL tests/pipeline_cache_tests.cpp)
+set_target_properties(dcp-pipeline-cache-tests PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+target_include_directories(dcp-pipeline-cache-tests PRIVATE gpu/shadps4)
+target_compile_options(dcp-pipeline-cache-tests PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(dcp-pipeline-cache-tests PRIVATE Threads::Threads)
+
 # Focused tests of the issue #32 water diagnostics (classification, deduplication, the cap); not part of the default build.
 add_executable(dcp-water-diag-tests EXCLUDE_FROM_ALL tests/water_diag_tests.cpp)
 set_target_properties(dcp-water-diag-tests PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
@@ -458,7 +472,8 @@ target_compile_options(dcp-ultrawide-sides-tests PRIVATE -Wall -Wextra -Werror)
 
 # Focused tests of the title's four-row menu with Exit Game: text, hooks and install checks on synthetic images
 # (tools/test.ps1); not part of the default build.
-add_executable(dcp-exit-game-tests EXCLUDE_FROM_ALL tests/exit_game_tests.c src/guest_hook.c src/exit_game_hook.c src/exit_game_text.c src/title_layout.c)
+add_executable(dcp-exit-game-tests EXCLUDE_FROM_ALL tests/exit_game_tests.c src/guest_hook.c src/exit_game_hook.c src/exit_game_text.c src/title_layout.c
+    src/cyrillic_glyphs.c src/latin_glyphs.c)
 target_include_directories(dcp-exit-game-tests PRIVATE src)
 target_compile_definitions(dcp-exit-game-tests PRIVATE DCP_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_compile_options(dcp-exit-game-tests PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
@@ -497,4 +512,9 @@ if (NOT WIN32)
     target_include_directories(dcp-runtime-tests PRIVATE src)
     target_compile_options(dcp-runtime-tests PRIVATE -Wall -Wextra -Werror -fno-omit-frame-pointer)
     target_link_libraries(dcp-runtime-tests PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
+
+    # Focused test of the loader's SIGPIPE handling (tools/build.sh --test); not part of the default build.
+    add_executable(dcp-sigpipe-tests EXCLUDE_FROM_ALL tests/sigpipe_tests.c)
+    target_compile_definitions(dcp-sigpipe-tests PRIVATE DCP_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    target_compile_options(dcp-sigpipe-tests PRIVATE -Wall -Wextra -Werror)
 endif()
