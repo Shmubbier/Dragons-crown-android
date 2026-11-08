@@ -265,16 +265,57 @@ int runtime_pad_slot_human(int slot) {
 }
 #ifdef __ANDROID__
 /* Android: on-screen touch controls for player 1 while no gamepad is connected (android/touch_layout.h).
- * The overlay draws them from the state published here; torn reads of the stick only move a drawing. */
+ * The overlay draws them from the state published here; torn reads of a stick only move a drawing. */
 #include "touch_layout.h"
 static _Atomic uint32_t touch_held;
 static _Atomic int touch_visible=1;
-static struct { SDL_FingerID id; volatile int active; volatile float ox, oy, kx, ky; } touch_stick;
+typedef struct { SDL_FingerID id; volatile int active; volatile float ox, oy, kx, ky; } TouchStick;
+static TouchStick touch_sticks[2]; /* left (floating), right (fixed) */
+static DcpTouchButton layout[DCP_TOUCH_BUTTON_COUNT];
+static const DcpTouchButton *layout_of(int shape) {
+    for (size_t i=0;i<DCP_TOUCH_BUTTON_COUNT;++i) if (layout[i].shape==shape) return &layout[i];
+    return NULL;
+}
+/* user/touch_layout.ini next to dcp.ini; a missing file or line keeps the default. */
+static void load_touch_layout(void) {
+    static bool loaded;
+    if (loaded || !*keys_file) return;
+    loaded=true;
+    memcpy(layout,dcp_touch_defaults,sizeof(layout));
+    char path[4300], line[256];
+    snprintf(path,sizeof(path),"%s",keys_file);
+    char *slash=strrchr(path,'/');
+    if (slash) snprintf(slash+1,sizeof(path)-(size_t)(slash+1-path),"touch_layout.ini");
+    FILE *f=fopen(path,"r");
+    int changed=0;
+    while (f && fgets(line,sizeof(line),f)) {
+        char id[32];
+        float x, y, size, opacity;
+        int enabled;
+        if (line[0]=='#' || sscanf(line," %31[a-z_0-9] = %f %f %f %f %d",id,&x,&y,&size,&opacity,&enabled)!=6) continue;
+        for (size_t i=0;i<DCP_TOUCH_BUTTON_COUNT;++i) {
+            if (strcmp(layout[i].id,id)) continue;
+            layout[i].x=x<0 ? 0 : x>1 ? 1 : x;
+            layout[i].y=y<0 ? 0 : y>1 ? 1 : y;
+            layout[i].r=dcp_touch_defaults[i].r*(size<0.25f ? 0.25f : size>3 ? 3 : size);
+            layout[i].opacity=opacity<0.05f ? 0.05f : opacity>1 ? 1 : opacity;
+            layout[i].enabled=enabled || layout[i].button==DCP_TOUCH_SETTINGS; /* Settings stays reachable */
+            ++changed;
+        }
+    }
+    if (f) fclose(f);
+    if (changed) printf("Runtime: touch layout: %d controls from %s\n",changed,path);
+}
+const DcpTouchButton *dcp_touch_layout(void) {
+    if (!layout[0].id) memcpy(layout,dcp_touch_defaults,sizeof(layout));
+    return layout;
+}
 int dcp_touch_controls_visible(void) { return touch_visible; }
 uint32_t dcp_touch_held_buttons(void) { return touch_held; }
-int dcp_touch_stick(float *ox, float *oy, float *kx, float *ky) {
-    *ox=touch_stick.ox; *oy=touch_stick.oy; *kx=touch_stick.kx; *ky=touch_stick.ky;
-    return touch_stick.active;
+int dcp_touch_stick(int stick, float *ox, float *oy, float *kx, float *ky) {
+    const TouchStick *s=&touch_sticks[stick ? 1 : 0];
+    *ox=s->ox; *oy=s->oy; *kx=s->kx; *ky=s->ky;
+    return s->active;
 }
 static float touch_aspect(void) {
     SDL_Window *w=SDL_GetKeyboardFocus();
@@ -282,51 +323,70 @@ static float touch_aspect(void) {
     if (w) SDL_GetWindowSize(w,&width,&height);
     return width>0 && height>0 ? (float)width/(float)height : 16.0f/9.0f;
 }
+static void stick_axes(const TouchStick *s, float radius, float aspect, uint8_t *ax, uint8_t *ay) {
+    float sx=(s->kx-s->ox)*aspect/radius, sy=(s->ky-s->oy)/radius;
+    const float length=sqrtf(sx*sx+sy*sy);
+    if (length>1.0f) { sx/=length; sy/=length; }
+    *ax=(uint8_t)(128.0f+sx*127.0f);
+    *ay=(uint8_t)(128.0f+sy*127.0f);
+}
+/* Each finger, in order: a stick it already holds; a control under it; the right stick's circle (starting it); the left
+ * stick's area (starting it there); else the PS4 touchpad, scaled to its 1920x943 surface (two fingers at most). */
 static void sample_touch(PadData *d, bool gamepad) {
-    touch_visible=!gamepad;
-    if (gamepad) { touch_held=0; touch_stick.active=0; return; }
+    load_player_controllers();
+    load_touch_layout();
+    dcp_touch_layout();
+    touch_visible=!gamepad && touch_controls;
+    const DcpTouchButton *left=layout_of(DCP_TOUCH_LEFT_STICK), *right=layout_of(DCP_TOUCH_RIGHT_STICK);
+    const DcpTouchButton *pad=layout_of(DCP_TOUCH_PAD);
     const float aspect=touch_aspect();
     uint32_t held=0;
-    int stick_seen=0, devices=0;
+    int seen[2]={0,0}, pad_touches=0, devices=0;
     SDL_TouchID *ids=SDL_GetTouchDevices(&devices);
     for (int t=0;ids && t<devices;++t) {
         int count=0;
         SDL_Finger **fingers=SDL_GetTouchFingers(ids[t],&count);
         for (int i=0;fingers && i<count;++i) {
             const float x=fingers[i]->x, y=fingers[i]->y;
-            if (touch_stick.active && fingers[i]->id==touch_stick.id) {
-                touch_stick.kx=x; touch_stick.ky=y; stick_seen=1;
-                continue;
+            int taken=0;
+            for (int k=0;k<2 && !taken;++k) {
+                if (touch_sticks[k].active && fingers[i]->id==touch_sticks[k].id) {
+                    touch_sticks[k].kx=x; touch_sticks[k].ky=y; seen[k]=1; taken=1;
+                }
             }
-            int hit=0;
-            for (size_t b=0;b<DCP_TOUCH_BUTTON_COUNT;++b) {
-                const DcpTouchButton *button=&dcp_touch_buttons[b];
+            for (size_t b=0;b<DCP_TOUCH_BUTTON_COUNT && !taken;++b) {
+                const DcpTouchButton *button=&layout[b];
+                if (!button->button || !button->enabled || (!touch_visible && button->button!=DCP_TOUCH_SETTINGS)) continue;
                 const float dx=(x-button->x)*aspect, dy=y-button->y, reach=button->r*DCP_TOUCH_HIT_SCALE;
-                if (dx*dx+dy*dy<=reach*reach) { held|=button->button; hit=1; }
+                if (dx*dx+dy*dy<=reach*reach) { held|=button->button; taken=1; }
             }
-            if (!hit && !touch_stick.active && x<DCP_TOUCH_STICK_MAX_X && y>DCP_TOUCH_STICK_MIN_Y) {
-                touch_stick.id=fingers[i]->id;
-                touch_stick.ox=touch_stick.kx=x; touch_stick.oy=touch_stick.ky=y;
-                touch_stick.active=1; stick_seen=1;
+            if (taken || !touch_visible) continue;
+            const float rx=(x-right->x)*aspect, ry=y-right->y;
+            if (right->enabled && !touch_sticks[1].active && rx*rx+ry*ry<=right->r*right->r) {
+                touch_sticks[1]=(TouchStick){fingers[i]->id,1,right->x,right->y,x,y};
+                seen[1]=1;
+            } else if (left->enabled && !touch_sticks[0].active && x<DCP_TOUCH_STICK_MAX_X && y>DCP_TOUCH_STICK_MIN_Y) {
+                touch_sticks[0]=(TouchStick){fingers[i]->id,1,x,y,x,y};
+                seen[0]=1;
+            } else if (pad->enabled && pad_touches<2) {
+                d->touches[pad_touches]=(PadTouch){.x=touch_axis(x,1919),.y=touch_axis(y,942),.id=(uint8_t)pad_touches};
+                ++pad_touches;
             }
         }
         SDL_free(fingers);
     }
     SDL_free(ids);
-    if (!stick_seen) touch_stick.active=0;
-    if (touch_stick.active) {
-        float sx=(touch_stick.kx-touch_stick.ox)*aspect/DCP_TOUCH_STICK_RADIUS;
-        float sy=(touch_stick.ky-touch_stick.oy)/DCP_TOUCH_STICK_RADIUS;
-        const float length=sqrtf(sx*sx+sy*sy);
-        if (length>1.0f) { sx/=length; sy/=length; }
-        d->left_x=(uint8_t)(128.0f+sx*127.0f);
-        d->left_y=(uint8_t)(128.0f+sy*127.0f);
-    }
+    for (int k=0;k<2;++k) if (!seen[k]) touch_sticks[k].active=0;
+    if (touch_sticks[0].active) stick_axes(&touch_sticks[0],left->r,aspect,&d->left_x,&d->left_y);
+    if (touch_sticks[1].active) stick_axes(&touch_sticks[1],right->r,aspect,&d->right_x,&d->right_y);
+    if (pad_touches) d->touch_count=(uint8_t)pad_touches;
+    if ((held & ~touch_held) & DCP_TOUCH_SETTINGS) SDL_SendAndroidMessage(DCP_ANDROID_OPEN_SETTINGS,0);
+    touch_held=held;
+    held&=~DCP_TOUCH_SETTINGS;
     d->buttons|=held;
     if (held & BTN_L2) d->l2=255;
     if (held & BTN_R2) d->r2=255;
     if ((held & BTN_TOUCHPAD) && !d->touch_count) touch_click(d,0);
-    touch_held=held;
 }
 #endif
 static void sample_host(int slot, PadData *d) {

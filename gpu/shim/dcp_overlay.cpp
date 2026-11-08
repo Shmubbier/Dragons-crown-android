@@ -697,24 +697,63 @@ void PollOnlineNotice() {
 
 
 #ifdef __ANDROID__
-// Android on-screen controls (android/touch_layout.h); input is read in src/runtime_pad.c.
+// Android on-screen controls (android/touch_layout.h); input is read in src/runtime_pad.c. The settings gear is
+// always drawn, the rest while the controls are shown.
 bool TouchControlsShown() {
-    return dcp_touch_controls_visible() != 0;
+    return true;
+}
+
+// A stick: its base and knob, at the layout's opacity; idle, a faint ring where it waits.
+void TouchStick(ImDrawList* draw, int stick, const DcpTouchButton& b, float w, float h) {
+    const float r = b.r * h;
+    const auto alpha = [&](int a) { return int(float(a) * b.opacity); };
+    float ox, oy, kx, ky;
+    if (!dcp_touch_stick(stick, &ox, &oy, &kx, &ky)) {
+        if (stick) {
+            draw->AddCircleFilled({b.x * w, b.y * h}, r, IM_COL32(0, 0, 0, alpha(70)), 48);
+            draw->AddCircle({b.x * w, b.y * h}, r, IM_COL32(255, 255, 255, alpha(140)), 48, 2.0f);
+            draw->AddCircleFilled({b.x * w, b.y * h}, r * 0.42f, IM_COL32(255, 255, 255, alpha(110)), 32);
+        } else {
+            draw->AddCircle({b.x * w, b.y * h}, r, IM_COL32(255, 255, 255, alpha(60)), 48, 2.0f);
+        }
+        return;
+    }
+    const ImVec2 o{ox * w, oy * h};
+    float dx = (kx - ox) * w, dy = (ky - oy) * h;
+    const float len = std::sqrt(dx * dx + dy * dy);
+    if (len > r) {
+        dx *= r / len;
+        dy *= r / len;
+    }
+    draw->AddCircleFilled(o, r, IM_COL32(0, 0, 0, alpha(70)), 48);
+    draw->AddCircle(o, r, IM_COL32(255, 255, 255, alpha(150)), 48, 2.0f);
+    draw->AddCircleFilled({o.x + dx, o.y + dy}, r * 0.42f, IM_COL32(255, 255, 255, alpha(140)), 32);
 }
 
 void TouchControls(ImVec2 size) {
     ImDrawList* draw = ImGui::GetForegroundDrawList();
     const u32 held = dcp_touch_held_buttons();
+    const bool visible = dcp_touch_controls_visible() != 0;
     const float w = size.x, h = size.y;
-    for (const DcpTouchButton& b : dcp_touch_buttons) {
+    const DcpTouchButton* layout = dcp_touch_layout();
+    for (size_t i = 0; i < DCP_TOUCH_BUTTON_COUNT; ++i) {
+        const DcpTouchButton& b = layout[i];
+        if (!b.enabled || (!visible && b.button != DCP_TOUCH_SETTINGS) || b.shape == DCP_TOUCH_PAD) {
+            continue;
+        }
+        if (b.shape == DCP_TOUCH_LEFT_STICK || b.shape == DCP_TOUCH_RIGHT_STICK) {
+            TouchStick(draw, b.shape == DCP_TOUCH_RIGHT_STICK, b, w, h);
+            continue;
+        }
         const ImVec2 c{b.x * w, b.y * h};
         const float r = b.r * h;
         const bool on = (held & b.button) != 0;
-        const ImU32 ink = IM_COL32(255, 255, 255, on ? 255 : 190);
+        const auto alpha = [&](int a) { return int(float(a) * b.opacity); };
+        const ImU32 ink = IM_COL32(255, 255, 255, alpha(on ? 255 : 190));
         const float thick = std::max(2.0f, r * 0.09f);
         const float g = r * 0.45f;
-        draw->AddCircleFilled(c, r, on ? IM_COL32(255, 255, 255, 110) : IM_COL32(0, 0, 0, 80), 40);
-        draw->AddCircle(c, r, IM_COL32(255, 255, 255, on ? 230 : 140), 40, std::max(1.5f, r * 0.04f));
+        draw->AddCircleFilled(c, r, on ? IM_COL32(255, 255, 255, alpha(110)) : IM_COL32(0, 0, 0, alpha(80)), 40);
+        draw->AddCircle(c, r, IM_COL32(255, 255, 255, alpha(on ? 230 : 140)), 40, std::max(1.5f, r * 0.04f));
         switch (b.shape) {
         case DCP_TOUCH_CROSS:
             draw->AddLine({c.x - g, c.y - g}, {c.x + g, c.y + g}, ink, thick);
@@ -738,6 +777,15 @@ void TouchControls(ImVec2 size) {
             if (d == 'r') draw->AddTriangleFilled({c.x + a, c.y}, {c.x - a * 0.6f, c.y - a}, {c.x - a * 0.6f, c.y + a}, ink);
             break;
         }
+        case DCP_TOUCH_GEAR:
+            for (int tooth = 0; tooth < 8; ++tooth) {
+                const float a = float(tooth) * 0.785398f;
+                draw->AddLine({c.x + std::cos(a) * g * 0.75f, c.y + std::sin(a) * g * 0.75f},
+                              {c.x + std::cos(a) * g * 1.15f, c.y + std::sin(a) * g * 1.15f}, ink, thick * 1.4f);
+            }
+            draw->AddCircle(c, g * 0.75f, ink, 24, thick);
+            draw->AddCircleFilled(c, g * 0.28f, ink, 16);
+            break;
         case DCP_TOUCH_LABEL: {
             const float font = std::min(r * 0.7f, ImGui::GetFontSize() * 1.4f);
             const ImVec2 t = ImGui::GetFont()->CalcTextSizeA(font, FLT_MAX, 0.0f, b.label);
@@ -745,23 +793,6 @@ void TouchControls(ImVec2 size) {
             break;
         }
         }
-    }
-    float ox, oy, kx, ky;
-    const float stick_r = DCP_TOUCH_STICK_RADIUS * h;
-    if (dcp_touch_stick(&ox, &oy, &kx, &ky)) {
-        const ImVec2 o{ox * w, oy * h};
-        float dx = (kx - ox) * w, dy = (ky - oy) * h;
-        const float len = std::sqrt(dx * dx + dy * dy);
-        if (len > stick_r) {
-            dx *= stick_r / len;
-            dy *= stick_r / len;
-        }
-        draw->AddCircleFilled(o, stick_r, IM_COL32(0, 0, 0, 70), 48);
-        draw->AddCircle(o, stick_r, IM_COL32(255, 255, 255, 150), 48, 2.0f);
-        draw->AddCircleFilled({o.x + dx, o.y + dy}, stick_r * 0.42f, IM_COL32(255, 255, 255, 140), 32);
-    } else {
-        // Where the stick usually is: a faint ring as a hint.
-        draw->AddCircle({0.26f * w, 0.70f * h}, stick_r, IM_COL32(255, 255, 255, 60), 48, 2.0f);
     }
 }
 #else
@@ -1172,8 +1203,8 @@ bool BeginPresent() {
     if (ms > 0.0f && ms < 1000.0f) {
         frame_ms_avg = frame_ms_avg == 0.0f ? ms : frame_ms_avg * 0.95f + ms * 0.05f;
     }
-    // DCP_LOG_FPS (set by the Android build): presented frames per 5 s in the log, for unattended measurement.
-    static const bool log_fps = std::getenv("DCP_LOG_FPS") != nullptr;
+    // DCP_PERF_LOG (set by the Android build): presented frames per 5 s in the log, for unattended measurement.
+    static const bool log_fps = std::getenv("DCP_PERF_LOG") != nullptr;
     if (log_fps) {
         static auto window_start = now;
         static u64 window_frames = 0;

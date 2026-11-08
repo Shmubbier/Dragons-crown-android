@@ -20,8 +20,10 @@ find "$WORK/classes" -name '*.class' | while read -r f; do cygpath -m "$f"; done
 "$BT/d8.bat" --release --min-api 33 --lib "$PLATFORM" --output "$WORK/dex" @"$WORK/classes.txt" 2>/dev/null || \
     "$BT/d8" --release --min-api 33 --lib "$PLATFORM" --output "$WORK/dex" @"$WORK/classes.txt"
 
-# Manifest and resources table.
-"$BT/aapt2" link -o "$WORK/base.apk" -I "$PLATFORM" --manifest "$HERE/app/AndroidManifest.xml" \
+# Manifest, resources table and assets (the launcher's header art, for LauncherActivity).
+mkdir -p "$WORK/assets"
+cp "$HERE/../assets/launcher/header-art.png" "$WORK/assets/"
+"$BT/aapt2" link -o "$WORK/base.apk" -I "$PLATFORM" --manifest "$HERE/app/AndroidManifest.xml" -A "$WORK/assets" \
     --min-sdk-version 33 --target-sdk-version 35
 
 # Native library without debug sections (symbols kept for crash reports).

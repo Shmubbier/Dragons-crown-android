@@ -21,6 +21,18 @@ public class DcpActivity extends SDLActivity {
         return new String[] {"main"};
     }
 
+    /** The settings gear in the touch overlay (android/touch_layout.h DCP_ANDROID_OPEN_SETTINGS). */
+    private static final int OPEN_SETTINGS = 0x8001;
+
+    @Override
+    protected boolean onUnhandledMessage(int command, Object param) {
+        if (command != OPEN_SETTINGS) {
+            return super.onUnhandledMessage(command, param);
+        }
+        startActivity(new Intent(this, LauncherActivity.class).putExtra(LauncherActivity.EXTRA_FROM_GAME, true));
+        return true;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

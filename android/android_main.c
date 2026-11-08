@@ -54,7 +54,7 @@ int SDL_main(int argc, char *argv[]) {
      * for unattended tests over adb; a missing file changes nothing. */
     static char pad_file[1100];
     snprintf(pad_file, sizeof(pad_file), "%s/pad_input.txt", root);
-    setenv("DCP_LOG_FPS", "1", 0);
+    setenv("DCP_PERF_LOG", "1", 0);
     setenv("DCP_PAD_FILE", pad_file, 0);
     /* Debugging switches without a rebuild: KEY=VALUE lines in files/env.txt (e.g. DCP_GPU_SYNC=1). */
     char env_file[1100], line[512];
